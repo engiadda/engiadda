@@ -1,0 +1,10 @@
+{
+  "name": "engiadda-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EngiAdda backend API foundation",
+  "main": "src/server.js",
+  "scripts": {"dev":"node --watch src/server.js","start":"node src/server.js"},
+  "engines": {"node": ">=20"},
+  "dependencies": {"cors":"^2.8.5","dotenv":"^16.4.7","express":"^4.21.2","helmet":"^8.0.0","pg":"^8.13.1"}
+}
