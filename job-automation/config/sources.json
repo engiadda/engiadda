@@ -1,0 +1,42 @@
+[
+  {
+    "source_id": "upsc",
+    "organization": "UPSC",
+    "source_type": "government",
+    "category": "central_government",
+    "url": "https://upsc.gov.in/examinations/active-exams",
+    "priority": 1,
+    "enabled": true,
+    "kind": "html"
+  },
+  {
+    "source_id": "ssc",
+    "organization": "SSC",
+    "source_type": "government",
+    "category": "central_government",
+    "url": "https://ssc.gov.in/",
+    "priority": 1,
+    "enabled": true,
+    "kind": "html"
+  },
+  {
+    "source_id": "rrb",
+    "organization": "Railway Recruitment Boards",
+    "source_type": "government",
+    "category": "railway",
+    "url": "https://www.rrbcdg.gov.in/",
+    "priority": 1,
+    "enabled": true,
+    "kind": "html"
+  },
+  {
+    "source_id": "pib",
+    "organization": "Press Information Bureau",
+    "source_type": "government",
+    "category": "government",
+    "url": "https://www.pib.gov.in/",
+    "priority": 2,
+    "enabled": true,
+    "kind": "html"
+  }
+]
