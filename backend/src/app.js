@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { corsOrigins } = require('./config/env');
 const healthRoutes = require('./routes/health.routes');
+const jobsRoutes = require('./routes/jobs.routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -26,6 +27,7 @@ app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.get('/', (req, res) => res.json({ name: 'EngiAdda API', version: '1.0.0' }));
 app.get('/api/live', (req, res) => res.json({ status: 'ok', service: 'engiadda-api' }));
 app.use('/api/health', healthRoutes);
+app.use('/api/jobs', jobsRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
