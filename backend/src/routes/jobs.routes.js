@@ -76,10 +76,10 @@ router.get('/', async (req, res, next) => {
     const category = cleanText(req.query.category, 100);
     const discipline = cleanText(req.query.discipline, 100);
     const params = [];
-    const filters = ["(deadline IS NULL OR deadline >= CURRENT_DATE)"];
+    const filters = ["official = TRUE", "(deadline IS NULL OR deadline >= CURRENT_DATE)"];
     if (search) {
-      params.push(`%${search.replace(/[\\%_]/g, '\\$&')}%`);
-      filters.push(`(title ILIKE $ ${params.length} ESCAPE '\\\\' OR company ILIKE $ ${params.length} ESCAPE '\\\\' OR location ILIKE $ ${params.length} ESCAPE '\\\\' OR engineering_discipline ILIKE $ ${params.length} ESCAPE '\\\\')`.replace(/\$ /g, '$'));
+      params.push(`%${search}%`);
+      filters.push(`(title ILIKE ${params.length} OR company ILIKE ${params.length} OR location ILIKE ${params.length} OR engineering_discipline ILIKE ${params.length})`);
     }
     if (category) { params.push(category); filters.push(`category = $${params.length}`); }
     if (discipline) { params.push(`%${discipline}%`); filters.push(`engineering_discipline ILIKE $${params.length}`); }
