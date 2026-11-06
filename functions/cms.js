@@ -99,7 +99,10 @@ export function createCmsApp() {
     } catch (error) { console.error("CMS login failed:", error.message); return jsonError(c, "Login service unavailable", 503); }
   });
 
-  app.use("/api/admin/*", async (c, next) => {\n    if (c.req.path === "/api/admin/login") return next();\n    return requireAdmin(c, next);\n  });
+  app.use("/api/admin/*", async (c, next) => {
+    if (c.req.path === "/api/admin/login") return next();
+    return requireAdmin(c, next);
+  });
   app.get("/api/admin/session", (c) => c.json({ authenticated: true, expires_in: 7200 }));
   app.get("/api/admin/content", async (c) => {
     try {
