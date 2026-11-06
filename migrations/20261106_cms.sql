@@ -1,5 +1,6 @@
 -- EngiAdda CMS schema. Apply to the production branch only after reviewing this migration.
-CREATE TABLE IF NOT EXISTS public.content_items (
+CREATE SCHEMA IF NOT EXISTS cms;
+CREATE TABLE IF NOT EXISTS cms.content_items (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  content_type text NOT NULL CHECK (content_type IN ('article','resource')),
  title varchar(240) NOT NULL,
@@ -22,9 +23,9 @@ CREATE TABLE IF NOT EXISTS public.content_items (
  published_at timestamptz,
  CHECK ((content_type = 'article' AND body_markdown IS NOT NULL) OR content_type = 'resource')
 );
-CREATE INDEX IF NOT EXISTS content_items_public_idx ON public.content_items (published_at DESC) WHERE status='published';
+CREATE INDEX IF NOT EXISTS content_items_public_idx ON cms.content_items (published_at DESC) WHERE status='published';
 CREATE INDEX IF NOT EXISTS content_items_admin_idx ON public.content_items (updated_at DESC);
-CREATE TABLE IF NOT EXISTS public.cms_audit_log (
+CREATE TABLE IF NOT EXISTS cms.cms_audit_log (
  id bigserial PRIMARY KEY,
  action varchar(40) NOT NULL,
  content_id uuid,
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.cms_audit_log (
  details jsonb NOT NULL DEFAULT '{}',
  created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE TABLE IF NOT EXISTS public.cms_login_attempts (
+CREATE TABLE IF NOT EXISTS cms.cms_login_attempts (
  username varchar(80) PRIMARY KEY,
  attempts integer NOT NULL DEFAULT 0,
  window_started timestamptz NOT NULL DEFAULT now(),
