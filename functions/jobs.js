@@ -1,13 +1,36 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import pg from "pg";
-import { timingSafeEqual } from "node:crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const { Pool } = pg;
 const ALLOWED_ORIGINS = ["https://engiadda.github.io", "http://localhost:5500"];
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
 const JOB_ID_RE = /^[A-Za-z0-9._:-]{1,200}$/;
+const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
+const GITHUB_OIDC_AUDIENCE = "engiadda-jobs-api";
+const GITHUB_OIDC_JWKS = createRemoteJWKSet(new URL(`${GITHUB_OIDC_ISSUER}/.well-known/jwks`));
+
+export function isTrustedPublisherClaims(payload) {
+  return payload?.repository === "engiadda/engiadda-job-alert-agent"
+    && payload?.ref === "refs/heads/main"
+    && payload?.workflow_ref === "engiadda/engiadda-job-alert-agent/.github/workflows/job-alert-agent.yml@refs/heads/main"
+    && ["schedule", "workflow_dispatch"].includes(payload?.event_name);
+}
+
+export async function verifyPublisherToken(token, jwks = GITHUB_OIDC_JWKS) {
+  if (typeof token !== "string" || !token) return false;
+  try {
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: GITHUB_OIDC_ISSUER,
+      audience: GITHUB_OIDC_AUDIENCE,
+    });
+    return isTrustedPublisherClaims(payload);
+  } catch {
+    return false;
+  }
+}
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -20,13 +43,6 @@ export const pool = new Pool({
 pool.on("error", (error) => {
   console.error("Unexpected idle PostgreSQL client error:", error.message);
 });
-
-function safeEqual(left, right) {
-  if (typeof left !== "string" || typeof right !== "string") return false;
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 function cleanText(value, max = 2_000) {
   if (value === undefined || value === null) return null;
@@ -111,6 +127,7 @@ export function normalizeJob(input) {
   };
 }
 
+export function createApp({ verifyToken = verifyPublisherToken } = {}) {
 const app = new Hono();
 
 app.use(
@@ -189,12 +206,10 @@ app.get("/api/jobs", async (c) => {
 });
 
 app.post("/api/jobs/ingest", async (c) => {
-  const expected = process.env.WEBSITE_WEBHOOK_TOKEN;
   const authorization = c.req.header("authorization") || "";
   const provided = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
 
-  if (!expected) return c.json({ error: "Job ingestion is not configured" }, 503);
-  if (!safeEqual(provided, expected)) return c.json({ error: "Unauthorized" }, 401);
+  if (!(await verifyToken(provided))) return c.json({ error: "Unauthorized" }, 401);
 
   let body;
   try {
@@ -232,5 +247,8 @@ app.onError((error, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-export { app };
+return app;
+}
+
+export const app = createApp();
 export default app;
