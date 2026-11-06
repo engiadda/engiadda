@@ -14,12 +14,13 @@
       if(!items.length){showEmpty("New articles and recruitment updates will appear here as they are published.");return;}
       target.replaceChildren();
       items.slice(0,3).forEach(item=>{
-        const card=make("article","home-story");
+        const card=make("a","home-story");
+        card.href="article.html?slug="+encodeURIComponent(item.slug||"");
+        card.setAttribute("aria-label","Read update: "+(item.title||"EngiAdda update"));
         const type=make("span","home-story-type",labels[item.content_type]||"ENGIADDA UPDATE");
         const title=make("h3","",item.title||"EngiAdda update");
         const excerpt=make("p","",item.excerpt||"Open this update to read the published details.");
-        const link=make("a","home-story-link");
-        link.href="article.html?slug="+encodeURIComponent(item.slug||"");
+        const link=make("span","home-story-link");
         link.append(make("span","","Read update"),make("b","","↗"));
         card.append(type,title,excerpt,link);target.append(card);
       });
