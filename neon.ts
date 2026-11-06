@@ -5,9 +5,6 @@ export default defineConfig({
     jobs: {
       name: "EngiAdda Jobs API",
       source: "./functions/jobs.js",
-      env: {
-        WEBSITE_WEBHOOK_TOKEN: process.env.WEBSITE_WEBHOOK_TOKEN!,
-      },
     },
   },
 });
