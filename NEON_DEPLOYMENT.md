@@ -8,45 +8,64 @@ This implementation keeps the existing GitHub Pages site and uses the existing N
 
 The job-alert agent publishes verified records to the protected `POST /api/jobs/ingest` endpoint. The Careers page reads active records from `GET /api/jobs`.
 
-## Free-tier guardrail
+## Cost guardrail
 
-Use the existing Neon Free project only. Do not enable a paid plan, paid compute, paid AI Gateway, or a paid hosting service. Neon currently documents a Free allowance for PostgreSQL and Functions; quotas and plan terms can change, so review the project's usage/plan screen before deployment. If the free allowance is exhausted, stop and ask before upgrading.
+Use the existing Neon Free project only. Do not enable a paid plan, paid compute, paid AI Gateway, or a paid hosting service. Review the project's plan and usage screen periodically. If the free allowance is exhausted, stop and ask before upgrading.
 
-## One-time setup
+## Production deployment status
 
-1. Connect the existing Neon project to the workspace using the Neon integration. Do not create a second project unless the existing project is unusable.
-2. Confirm the project is in the intended region and select its production/main branch.
-3. Apply `database/migrations/001_create_jobs.sql` to that branch. The migration is idempotent.
-4. Generate a long random `WEBSITE_WEBHOOK_TOKEN`. Store it as a Neon Function environment secret. Never commit it to Git.
-5. Install the root dependencies with `npm install`.
-6. Deploy the function using `npm run neon:deploy` (or the current Neon CLI deployment flow). Supply the secret through the local ignored `.env.local` file when requested.
-7. Copy the deployed Function's HTTPS URL into `assets/config.js` as `window.ENGIADDA_API_BASE`. The value is the function base URL, without a trailing slash.
-8. Test `GET /api/live`, `GET /api/health`, and `GET /api/jobs` before connecting the publisher.
+- Existing Neon project: `engiadda` in `aws-ap-southeast-1`
+- Production branch: `production`
+- Migration: `database/migrations/001_create_jobs.sql` applied and verified
+- Neon Function: `jobs` deployed on Node.js 24
+- Function base URL: `https://br-curly-bar-az2kh01w-jobs.compute.c-3.ap-southeast-1.aws.neon.tech`
+- Careers frontend API base: configured in `assets/config.js`
 
-## Job-agent connection
+## Authentication
 
-In the `engiadda/engiadda-job-alert-agent` repository, configure Actions secrets:
+The ingestion endpoint uses GitHub Actions OIDC rather than a long-lived shared webhook secret.
 
-- `WEBSITE_WEBHOOK_URL`: deployed Function URL plus `/api/jobs/ingest`
-- `WEBSITE_WEBHOOK_TOKEN`: the same secret configured in Neon
-- `TELEGRAM_BOT_TOKEN`: existing Telegram bot token
-- `TELEGRAM_CHAT_ID`: existing channel/chat ID (optional; publisher falls back to `@engiadda`)
+The Neon Function verifies:
+- GitHub's OIDC JWT signature using GitHub's published JWKS
+- Issuer: `https://token.actions.githubusercontent.com`
+- Audience: `engiadda-jobs-api`
+- Repository: `engiadda/engiadda-job-alert-agent`
+- Ref: `refs/heads/main`
+- Workflow: `.github/workflows/job-alert-agent.yml`
+- Event type: scheduled or manually dispatched workflow
 
-Do not paste any secret into a chat, issue, pull request, commit, or log.
-
-## Production validation
-
-1. Run the job-agent workflow in dry-run mode first.
-2. Confirm source fetching, verification, publication-date checks, expiry checks, and deduplication.
-3. Confirm a controlled test job reaches the Neon API and appears in the public feed.
-4. Confirm Telegram publishing independently.
-5. Only then enable scheduled website publishing.
+The job-agent workflow has `id-token: write` permission. Do not add a static `WEBSITE_WEBHOOK_TOKEN` secret. The public API URL is configured in the job-agent workflow and is not a credential.
 
 ## API
 
-- `GET /api/live` — liveness, no database query
+- `GET /api/live` — liveness check
 - `GET /api/health` — PostgreSQL readiness
-- `GET /api/jobs` — public active verified job feed; supports `limit`, `offset`, `q`, `category`, and `discipline`\n  Private-sector roles without a stated closing date are retained for at most 60 days from their explicit publication date; no artificial application deadline is created.
-- `POST /api/jobs/ingest` — protected publisher endpoint; requires a Bearer token, HTTPS job URL, verified-source flag, and non-expired deadline
+- `GET /api/jobs` — public active verified job feed; supports `limit`, `offset`, `q`, `category`, and `discipline`
+- `POST /api/jobs/ingest` — verified publisher-only ingestion endpoint
 
-The Careers page is intentionally read-only. It does not allow arbitrary users to post jobs. Job submissions are accepted only from the authenticated job-alert publisher.
+Private-sector roles without a stated closing date are retained for at most 60 days from their explicit publication date; no artificial application deadline is created.
+
+## Production validation
+
+The deployed API has passed GitHub Actions smoke tests:
+1. `GET /api/live` returned success.
+2. `GET /api/health` confirmed the database connection.
+3. `GET /api/jobs` returned a valid feed response.
+4. Unauthenticated `POST /api/jobs/ingest` was rejected with HTTP 401.
+
+The Careers page is read-only. It does not accept arbitrary public job submissions; only the authenticated job-alert workflow can publish.
+
+## Local development and deployment
+
+Requires Node.js 20+.
+
+```bash
+npm install
+npm test
+npx neon@latest login
+npx neon@latest link --project-id fancy-violet-54245534 --branch production -y
+npm run neon:plan
+npm run neon:deploy
+```
+
+Never commit `.env.local`, `.neon`, database credentials, Telegram credentials, or other secrets.
