@@ -8,7 +8,8 @@
   "scripts": {
     "test": "node --test",
     "neon:plan": "npx neon@latest config plan",
-    "neon:deploy": "npx neon@latest functions deploy jobs --src functions/jobs.js --wait"
+    "neon:deploy": "npx neon@latest functions deploy jobs --src functions/jobs.js --wait",
+    "neon:deploy-cms": "npx neon@latest functions deploy cms --src functions/cms.js --wait"
   },
   "dependencies": {
     "hono": "^4.9.8",
