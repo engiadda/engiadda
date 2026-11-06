@@ -35,7 +35,7 @@
   $("content-title").addEventListener("input", () => { if (!$("content-id").value && !$("content-slug").dataset.edited) $("content-slug").value = slugify($("content-title").value); });
   $("content-slug").addEventListener("input", () => { $("content-slug").dataset.edited = "1"; });
   function slugify(value) { return String(value).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,240); }
-  function toggleType() { const resource = $("content-type").value === "resource"; $("article-fields").hidden = resource; $("resource-fields").hidden = !resource; }
+  function toggleType() { const type = $("content-type").value; const resource = type === "resource"; const recruitment = type === "recruitment"; $("article-fields").hidden = resource; $("recruitment-fields").hidden = !recruitment; $("resource-fields").hidden = !resource; }
   function resetForm() {
     $("content-form").reset(); $("content-id").value = ""; $("content-slug").dataset.edited = ""; currentFile = null; $("editor-heading").textContent = "Create content"; $("upload-status").textContent = ""; message("editor-message", ""); toggleType();
   }
@@ -82,7 +82,7 @@
     if (!item) return;
     $("content-id").value = item.id; $("content-type").value = item.content_type; $("content-title").value = item.title; $("content-slug").value = item.slug; $("content-slug").dataset.edited = "1";
     $("content-excerpt").value = item.excerpt || ""; $("content-category").value = item.category; $("content-subject").value = item.subject || ""; $("content-exam").value = item.exam || ""; $("content-tags").value = (item.tags || []).join(", ");
-    $("content-body").value = item.body_markdown || ""; $("seo-title").value = item.seo_title || ""; $("seo-description").value = item.seo_description || "";
+    $("content-body").value = item.body_markdown || ""; const links = item.recruitment_links || {}; $("recruitment-notification").value = links.notification || ""; $("recruitment-apply").value = links.apply || ""; $("recruitment-admit-card").value = links.admitCard || ""; $("recruitment-result").value = links.result || ""; $("recruitment-website").value = links.officialWebsite || ""; $("seo-title").value = item.seo_title || ""; $("seo-description").value = item.seo_description || "";
     currentFile = item.file_key ? { fileKey:item.file_key, fileName:item.file_name, fileMime:item.file_mime, fileSizeBytes:item.file_size_bytes } : null;
     $("editor-heading").textContent = "Edit content"; $("upload-status").textContent = currentFile ? "Attached file: " + currentFile.fileName : ""; toggleType(); window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -107,7 +107,7 @@
         contentType:$("content-type").value, title:$("content-title").value, slug:$("content-slug").value,
         excerpt:$("content-excerpt").value, category:$("content-category").value, subject:$("content-subject").value,
         exam:$("content-exam").value, tags:$("content-tags").value.split(",").map(x=>x.trim()).filter(Boolean),
-        bodyMarkdown:$("content-body").value, status, fileKey:file?.fileKey || "", fileName:file?.fileName || "",
+        bodyMarkdown:$("content-body").value, recruitmentLinks: { notification:$("recruitment-notification").value.trim(), apply:$("recruitment-apply").value.trim(), admitCard:$("recruitment-admit-card").value.trim(), result:$("recruitment-result").value.trim(), officialWebsite:$("recruitment-website").value.trim() }, status, fileKey:file?.fileKey || "", fileName:file?.fileName || "",
         fileMime:file?.fileMime || "", fileSizeBytes:file?.fileSizeBytes || null, seoTitle:$("seo-title").value, seoDescription:$("seo-description").value
       };
       const id = $("content-id").value;
@@ -125,7 +125,7 @@
     const panel = $("preview-panel"); panel.hidden = false;
     $("preview-title").textContent = $("content-title").value || "Untitled content";
     $("preview-excerpt").textContent = $("content-excerpt").value;
-    if ($("content-type").value === "article") {
+    if ($("content-type").value === "article" || $("content-type").value === "recruitment") {
       if (window.marked && window.DOMPurify) $("preview-output").innerHTML = DOMPurify.sanitize(marked.parse($("content-body").value || ""));
       else $("preview-output").textContent = $("content-body").value || "";
     } else { $("preview-output").textContent = currentFile ? "Resource file: " + currentFile.fileName : "Resource preview will be available after upload."; }
