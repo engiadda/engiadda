@@ -10,7 +10,7 @@ on:
       - "package.json"
       - ".github/workflows/neon-api-tests.yml"
   push:
-    branches: [main]
+    branches: [main, feature/neon-functions-jobs-feed]
     paths:
       - "functions/**"
       - "database/migrations/**"
