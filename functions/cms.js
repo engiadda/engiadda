@@ -187,6 +187,16 @@ export function createCmsApp({ db, env = process.env, clock = () => new Date() }
     }
   });
 
+  app.get("/api/cms/admin/content/:id", requireAdmin, async (c) => {
+    try {
+      const result = await db.query("SELECT id,title,slug,summary,body_markdown,content_type,status,subject,topic,cover_image_url,seo_title,seo_description,category_id,published_at FROM cms_content WHERE id=$1 LIMIT 1", [c.req.param("id")]);
+      return result.rowCount ? c.json({ content: result.rows[0] }) : c.json({ error: "Content not found" }, 404);
+    } catch (error) {
+      console.error("CMS content detail failed:", error.message);
+      return c.json({ error: "Unable to load content" }, 503);
+    }
+  });
+
   app.post("/api/cms/admin/content", requireAdmin, async (c) => {
     if (!requireOrigin(c)) return c.json({ error: "Untrusted origin" }, 403);
     let input;
