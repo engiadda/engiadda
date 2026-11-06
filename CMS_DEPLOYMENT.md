@@ -12,7 +12,7 @@ This release adds an administrator-only content manager for technical articles a
 - Drafts are never returned by public content endpoints.
 - The Function connects through `CMS_DATABASE_URL`, a least-privilege Postgres role scoped to the `cms` schema. Admin password hash and HMAC session secret are Function environment variables, never frontend variables.
 - Admin token expires after two hours and is kept in sessionStorage (cleared when the browser tab session ends).
-- Supported uploads: PDF, JPEG, PNG, WebP; maximum 50 MB. Resource access uses one-hour signed download links.
+- Supported uploads: PDF, JPEG, PNG, WebP; maximum 50 MB. Resource access uses one-hour signed download links. The S3 client sets `requestChecksumCalculation: WHEN_REQUIRED` so AWS SDK v3 does not sign an empty-body checksum that rejects browser uploads.
 - Content can be saved as draft, published, unpublished (back to draft), or archived. Archiving is reversible by editing and re-saving as a draft.
 
 ## One-time setup
@@ -46,4 +46,4 @@ This release adds an administrator-only content manager for technical articles a
 
 ## Cost and operational limits
 
-This design uses the existing Neon project and GitHub Pages; it does not create a paid hosting service. Neon Object Storage and Function usage are subject to the current account's free-tier quotas and provider pricing. Monitor the Neon usage page; do not enable a paid plan or upgrade without explicit approval. Published resource URLs are signed and expire after one hour; keep only material EngiAdda is authorised to publish.
+This design uses the existing Neon project and GitHub Pages; it does not create a paid hosting service. Neon currently includes 5 GB of Object Storage per project on its Free plan, and Neon Functions are also available on Free subject to monthly compute and invocation allowances. Usage is shared within the project/account limits; monitor consumption and stop before any paid upgrade. Monitor the Neon usage page; do not enable a paid plan or upgrade without explicit approval. Published resource URLs are signed and expire after one hour; keep only material EngiAdda is authorised to publish.
