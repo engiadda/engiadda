@@ -7,15 +7,14 @@
   },
   "scripts": {
     "test": "node --test",
-    "neon:plan": "neon config plan",
-    "neon:deploy": "neon deploy --env .env.local"
+    "neon:plan": "npx neon@latest config plan",
+    "neon:deploy": "npx neon@latest deploy --env .env.local"
   },
   "dependencies": {
     "hono": "^4.9.8",
     "pg": "^8.13.1"
   },
   "devDependencies": {
-    "@neon/config": "latest",
-    "neon": "latest"
+    "@neon/config": "latest"
   }
 }
