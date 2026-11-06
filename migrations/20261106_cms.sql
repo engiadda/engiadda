@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS cms.content_items (
  CHECK ((content_type = 'article' AND body_markdown IS NOT NULL) OR content_type = 'resource')
 );
 CREATE INDEX IF NOT EXISTS content_items_public_idx ON cms.content_items (published_at DESC) WHERE status='published';
-CREATE INDEX IF NOT EXISTS content_items_admin_idx ON public.content_items (updated_at DESC);
+CREATE INDEX IF NOT EXISTS content_items_admin_idx ON cms.content_items (updated_at DESC);
 CREATE TABLE IF NOT EXISTS cms.cms_audit_log (
  id bigserial PRIMARY KEY,
  action varchar(40) NOT NULL,
