@@ -39,16 +39,8 @@ Read-only inspection of the existing Neon production branch confirms:
    ```
    In PowerShell, set `$env:CMS_ADMIN_PASSWORD` from a secure prompt before running `npm run cms:hash-password`; do not put the password in a command literal or source file.
 4. Add the two generated values as Function environment variables: `CMS_ADMIN_PASSWORD_HASH` and `CMS_SESSION_SECRET`. Do not set them in `assets/config.js`, GitHub Pages, or committed files. Keep the password manager copy.
-5. Generate admin secrets locally. In Bash:
-   ```bash
-   read -s -p "Choose a unique CMS admin password (16+ characters): " CMS_ADMIN_PASSWORD; export CMS_ADMIN_PASSWORD; echo
-   npm run cms:hash-password
-   unset CMS_ADMIN_PASSWORD
-   ```
-   In PowerShell, set `$env:CMS_ADMIN_PASSWORD` from a secure prompt before running `npm run cms:hash-password`; do not put the password in a command literal or source file.
-6. Add the two generated values as Function environment variables: `CMS_ADMIN_PASSWORD_HASH` and `CMS_SESSION_SECRET`. Do not set them in `assets/config.js`, GitHub Pages, or committed files. Keep the password manager copy.
-7. Deploy the static site. `assets/config.js` points the frontend to the production `cms` Function URL.
-
+5. After the CMS Function is deployed and verified, deploy the static site so `admin.html`, `content.html`, and `article.html` become available on GitHub Pages. `assets/config.js` already points to the production CMS Function URL.
+ 
 ## Verification checklist
 
 - `GET /api/live` returns the CMS service health response.
