@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Engineering Jobs & Recruitment | EngiAdda</title>
-  <meta name="description" content="Explore engineering jobs, PSU recruitment, government vacancies and private-sector technical opportunities on EngiAdda.">
+  <title>Engineering Jobs, Recruitment & Results | EngiAdda</title>
+  <meta name="description" content="Search engineering jobs, government and PSU recruitment, results, admit cards, interview updates and career opportunities on EngiAdda.">
   <link rel="stylesheet" href="assets/style.css">
   <link rel="stylesheet" href="assets/jobs.css">
 </head>
@@ -32,7 +32,7 @@
     <div class="container">
       <div class="eyebrow">CAREERS / ENGINEERING OPPORTUNITIES</div>
       <h1>Engineering jobs.<br><span style="color:var(--accent)">Clear opportunities.</span></h1>
-      <p>Find government and PSU recruitment, private engineering roles, graduate trainee openings and technical opportunities — with important details organised in one place.</p>
+      <p>Search government and PSU recruitment, private engineering jobs, results, admit cards and important career updates—all organised in one place.</p>
       <div class="hero-actions">
         <a class="btn" href="#opportunities">Browse jobs</a>
         <a class="text-link" href="https://t.me/engiadda" target="_blank" rel="noopener noreferrer">Join job alerts →</a>
@@ -53,17 +53,29 @@
     <div class="container">
       <div class="section-head">
         <div>
-          <div class="eyebrow">LIVE JOB FEED</div>
+          <div class="eyebrow">CAREER UPDATES / VERIFIED SOURCES</div>
           <h2>Find your next opportunity.</h2>
         </div>
-        <p class="jobs-intro">Search active opportunities and filter by sector or engineering discipline. Listings are published from the EngiAdda job-verification pipeline.</p>
+        <p class="jobs-intro">One searchable destination for active vacancies, recruitment notifications, exam results, admit cards, interview updates and engineering career guidance. Job-feed listings pass through the EngiAdda verification pipeline; published updates link back to their official sources.</p>
       </div>
 
       <div class="jobs-toolbar">
         <form id="job-filters" class="job-filters">
           <div class="job-filter">
-            <label for="job-search">SEARCH JOBS</label>
-            <input id="job-search" name="search" type="search" placeholder="Role, company, location…" autocomplete="off">
+            <label for="job-search">SEARCH UPDATES</label>
+            <input id="job-search" name="search" type="search" placeholder="Organisation, post, exam, result or keyword…" autocomplete="off">
+          </div>
+          <div class="job-filter">
+            <label for="job-type">UPDATE TYPE</label>
+            <select id="job-type" name="type">
+              <option value="">All update types</option>
+              <option value="job">Job openings</option>
+              <option value="recruitment">Recruitment notifications</option>
+              <option value="result">Results</option>
+              <option value="admit_card">Admit cards</option>
+              <option value="interview">Interview / selection</option>
+              <option value="career">Career updates</option>
+            </select>
           </div>
           <div class="job-filter">
             <label for="job-category">SECTOR</label>
@@ -89,14 +101,23 @@
               <option value="automobile">Automobile</option>
             </select>
           </div>
-          <button class="btn" type="submit">Search jobs</button>
+          <div class="job-filter">
+            <label for="job-status">STATUS</label>
+            <select id="job-status" name="status">
+              <option value="">All statuses</option>
+              <option value="open">Open / upcoming</option>
+              <option value="published">Published update</option>
+              <option value="closed">Deadline passed</option>
+            </select>
+          </div>
+          <button class="btn" type="submit">Search updates</button>
         </form>
       </div>
 
-      <p id="jobs-status" class="jobs-status" aria-live="polite">Preparing the job feed…</p>
+      <p id="jobs-status" class="jobs-status" aria-live="polite">Preparing career updates…</p>
       <div id="jobs-list" class="jobs-grid"></div>
       <div class="jobs-pagination">
-        <button id="jobs-load-more" class="btn" type="button" hidden>Load more jobs</button>
+        <button id="jobs-load-more" class="btn" type="button" hidden>Load more updates</button>
       </div>
     </div>
   </section>
@@ -105,7 +126,7 @@
     <div class="container">
       <div class="jobs-note">
         <h3>Check the original notification before applying.</h3>
-        <p>EngiAdda organises recruitment information to make opportunities easier to discover. Always verify eligibility, dates and application instructions on the employer's or recruiting authority's official website before submitting an application.</p>
+        <p>EngiAdda organises recruitment information to make opportunities easier to discover. Always verify eligibility, dates, result notices and application instructions on the employer's or recruiting authority's official website. EngiAdda is an information and discovery platform; the recruiting authority remains the final source of truth.</p>
       </div>
     </div>
   </section>
