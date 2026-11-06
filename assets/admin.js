@@ -65,9 +65,9 @@
           if (!confirm('Permanently delete "' + item.title + '"? This cannot be undone.')) return;
           remove.disabled = true; remove.textContent = "Deleting…";
           try {
-            await request("/api/admin/content/" + encodeURIComponent(item.id), { method:"DELETE", headers:headers() });
+            const result = await request("/api/admin/content/" + encodeURIComponent(item.id), { method:"DELETE", headers:headers() });
             if ($("content-id").value === item.id) resetForm();
-            message("editor-message", "Content deleted.");
+            message("editor-message", result.storageCleanupPending ? "Content deleted; private file cleanup is pending." : "Content deleted.");
             await loadItems();
           } catch (error) {
             remove.disabled = false; remove.textContent = "Delete";
