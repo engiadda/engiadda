@@ -44,8 +44,24 @@
     try {
       const data = await request("/api/admin/content" + ($("status-filter").value ? "?status=" + encodeURIComponent($("status-filter").value) : ""), { headers: headers() });
       if (!data.items.length) { $("content-list").innerHTML = "<p>No content yet. Create your first article or resource.</p>"; return; }
-      $("content-list").innerHTML = data.items.map(item => `<article class="cms-item"><div><b>${esc(item.title)}</b><span>${esc(item.category)} · ${esc(item.content_type)} · ${esc(item.status)}</span></div><button type="button" data-edit="${esc(item.id)}" class="btn small secondary">Edit</button></article>`).join("");
-      $("content-list").querySelectorAll("[data-edit]").forEach(button => button.addEventListener("click", () => editItem(data.items.find(item => item.id === button.dataset.edit))));
+      const list = $("content-list"); list.replaceChildren();
+      for (const item of data.items) {
+        const card = document.createElement("article"); card.className = "cms-item";
+        const details = document.createElement("div");
+        const title = document.createElement("b"); title.textContent = item.title;
+        const meta = document.createElement("span"); meta.textContent = item.category + " · " + item.content_type + " · " + item.status;
+        details.append(title, meta);
+        const actions = document.createElement("div"); actions.className = "cms-item-actions";
+        const edit = document.createElement("button"); edit.type = "button"; edit.className = "btn small secondary"; edit.textContent = "Edit"; edit.addEventListener("click", () => editItem(item));
+        const nextStatus = item.status === "published" ? "draft" : "archived";
+        const change = document.createElement("button"); change.type = "button"; change.className = "btn small secondary"; change.textContent = item.status === "published" ? "Unpublish" : "Archive";
+        change.addEventListener("click", async () => {
+          if (!confirm(nextStatus === "archived" ? "Archive this item?" : "Unpublish this item?")) return;
+          try { await request("/api/admin/content/" + encodeURIComponent(item.id) + "/status", { method:"PATCH", headers:headers(), body:JSON.stringify({ status:nextStatus }) }); await loadItems(); }
+          catch (error) { message("editor-message", error.message, true); }
+        });
+        actions.append(edit, change); card.append(details, actions); list.append(card);
+      }
     } catch (error) { $("content-list").textContent = error.message; }
   }
   function editItem(item) {
