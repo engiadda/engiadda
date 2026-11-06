@@ -1,10 +1,39 @@
-# EngiAdda V2
-Clean public-facing prototype for EngiAdda.
+# EngiAdda
 
-Positioning:
-Building an engineering community through education, technology and career opportunities.
+Engineering education, technology and career opportunities under the Diwan brand.
 
-Sections:
-Home / Learn / Practice / Technology / Careers / Join / Login
+## Website
 
-This is a front-end prototype. Authentication, database, PYQs, tests, PDFs, job feeds and admin tools should be connected during the production backend phase.
+The public website remains on GitHub Pages:
+
+https://engiadda.github.io/engiadda/
+
+## Current implementation focus
+
+The current release is focused on the engineering jobs feed. PYQ practice, learning accounts and student authentication remain on hold.
+
+## Jobs architecture
+
+- Static frontend: GitHub Pages
+- API: Neon Functions (Hono)
+- Database: Neon Postgres
+- Publisher: EngiAdda Job Alert Agent
+- Public page: `careers.html`
+
+See [NEON_DEPLOYMENT.md](NEON_DEPLOYMENT.md) for setup, secrets, deployment and production validation.
+
+## Local API tests
+
+Requires Node.js 20+:
+
+```bash
+npm install
+npm test
+```
+
+## Security
+
+- The public API only reads verified, unexpired jobs.
+- Job ingestion requires a GitHub OIDC token restricted to the production job-alert workflow and HTTPS URLs.
+- Browser CORS is restricted to the EngiAdda GitHub Pages origin and local development.
+- Never commit `.env.local`, Neon credentials, webhook tokens or Telegram credentials.
