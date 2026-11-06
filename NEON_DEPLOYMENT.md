@@ -18,6 +18,7 @@ Use the existing Neon Free project only. Do not enable a paid plan, paid compute
 - Production branch: `production`
 - Migration: `database/migrations/001_create_jobs.sql` applied and verified
 - Neon Function: `jobs` deployed on Node.js 24
+- Database access: dedicated `engiadda_jobs_api` read/write role, scoped to `neondb.public`; the pooled connection is stored as the Function environment variable `JOBS_DATABASE_URL`
 - Function base URL: `https://br-curly-bar-az2kh01w-jobs.compute.c-3.ap-southeast-1.aws.neon.tech`
 - Careers frontend API base: configured in `assets/config.js`
 
@@ -34,7 +35,7 @@ The Neon Function verifies:
 - Workflow: `.github/workflows/job-alert-agent.yml`
 - Event type: scheduled or manually dispatched workflow
 
-The job-agent workflow has `id-token: write` permission. Do not add a static `WEBSITE_WEBHOOK_TOKEN` secret. The public API URL is configured in the job-agent workflow and is not a credential.
+The job-agent workflow has `id-token: write` permission. Do not add a static `WEBSITE_WEBHOOK_TOKEN` secret. The public API URL is configured in the job-agent workflow and is not a credential. The Function uses the dedicated scoped Postgres role rather than the database owner connection.
 
 ## API
 
@@ -64,8 +65,8 @@ npm install
 npm test
 npx neon@latest login
 npx neon@latest link --project-id fancy-violet-54245534 --branch production -y
-npm run neon:plan
+npm test
 npm run neon:deploy
 ```
 
-Never commit `.env.local`, `.neon`, database credentials, Telegram credentials, or other secrets.
+The existing Function deployment stores `JOBS_DATABASE_URL` as a private environment variable. The deploy script updates the function bundle while preserving its existing environment. Never commit `.env.local`, `.neon`, database credentials, Telegram credentials, or other secrets.
