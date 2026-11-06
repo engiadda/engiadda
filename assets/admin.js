@@ -64,7 +64,11 @@
   }
   function setVal(id,value){$(id).value=value??"";}
   function toLocal(value){if(!value)return"";const d=new Date(value);if(Number.isNaN(d.getTime()))return"";return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
-  function editItem(item){
+  async function editItem(item){
+    try {
+      const detail=await request("/api/admin/content/"+encodeURIComponent(item.id),{headers:headers()});
+      item=detail.item;
+    } catch(error) { message("editor-message","Unable to load content attachments: "+error.message,true); return; }
     $("content-id").value=item.id;setVal("content-type",item.content_type);setVal("content-title",item.title);setVal("content-slug",item.slug);$("content-slug").dataset.edited="1";
     setVal("content-excerpt",item.excerpt);setVal("content-category",item.category);setVal("content-author",item.author);setVal("content-subject",item.subject);setVal("content-exam",item.exam);setVal("content-tags",(item.tags||[]).join(", "));
     setVal("content-body",item.body_markdown);setVal("featured-image",item.featured_image_url);setVal("seo-title",item.seo_title);setVal("seo-description",item.seo_description);setVal("publish-schedule",toLocal(item.scheduled_at));
@@ -78,7 +82,18 @@
   }
   function renderAttachments(){
     const box=$("attachment-list");box.replaceChildren();
-    for(const file of currentAttachments){const row=document.createElement("div");row.className="cms-attachment";const name=document.createElement("span");name.textContent=file.label||file.fileName;const remove=document.createElement("button");remove.type="button";remove.className="btn small secondary";remove.textContent="Remove";remove.addEventListener("click",()=>{currentAttachments=currentAttachments.filter(x=>x!==file);renderAttachments();toggleType();});row.append(name,remove);box.append(row);}
+    for(const file of currentAttachments){
+      const row=document.createElement("div");row.className="cms-attachment";
+      const name=document.createElement("span");name.textContent=file.label||file.fileName;
+      row.append(name);
+      if(typeof file.url==="string"&&file.url.startsWith("https://")){
+        const download=document.createElement("a");download.className="btn small secondary";download.href=file.url;download.target="_blank";download.rel="noopener noreferrer";download.textContent="Download";row.append(download);
+      }else{
+        const pending=document.createElement("span");pending.className="cms-help";pending.textContent="Save draft to generate download link";row.append(pending);
+      }
+      const remove=document.createElement("button");remove.type="button";remove.className="btn small secondary";remove.textContent="Remove";remove.addEventListener("click",()=>{currentAttachments=currentAttachments.filter(x=>x!==file);renderAttachments();toggleType();});
+      row.append(remove);box.append(row);
+    }
     if(!currentAttachments.length)box.textContent="No attachments selected.";
   }
   async function uploadSelected(){
@@ -111,7 +126,10 @@
       const body={contentType:type,title:$("content-title").value,slug:$("content-slug").value,excerpt:$("content-excerpt").value,category:$("content-category").value,subject:$("content-subject").value,exam:$("content-exam").value,tags:$("content-tags").value.split(",").map(x=>x.trim()).filter(Boolean),disciplines:Array.from(document.querySelectorAll("#discipline-options input:checked")).map(x=>x.value),author:$("content-author").value,featuredImageUrl:$("featured-image").value,scheduledAt:$("publish-schedule").value?new Date($("publish-schedule").value).toISOString():null,metadata:metadataPayload(),attachments:currentAttachments.map(({fileKey,fileName,fileMime,fileSizeBytes,label})=>({fileKey,fileName,fileMime,fileSizeBytes,label})),bodyMarkdown:$("content-body").value,recruitmentLinks:{notification:$("recruitment-notification").value.trim(),apply:$("recruitment-apply").value.trim(),admitCard:$("recruitment-admit-card").value.trim(),result:$("recruitment-result").value.trim(),officialWebsite:$("recruitment-website").value.trim()},status,fileKey:type==="resource"?(primary?.fileKey||""):"",fileName:type==="resource"?(primary?.fileName||""):"",fileMime:type==="resource"?(primary?.fileMime||""):"",fileSizeBytes:type==="resource"?(primary?.fileSizeBytes||null):null,seoTitle:$("seo-title").value,seoDescription:$("seo-description").value};
       const id=$("content-id").value;
       const data=await request(id?"/api/admin/content/"+encodeURIComponent(id):"/api/admin/content",{method:id?"PATCH":"POST",headers:headers(),body:JSON.stringify(body)});
-      $("content-id").value=data.item.id;$("editor-heading").textContent="Edit content";message("editor-message",status==="published"?"Content published successfully.":"Draft saved successfully.");await loadItems();
+      $("content-id").value=data.item.id;
+      currentAttachments=Array.isArray(data.item.attachments)?data.item.attachments.map(file=>({...file})):[];
+      renderAttachments();
+      $("editor-heading").textContent="Edit content";message("editor-message",status==="published"?"Content published successfully.":"Draft saved successfully. Download links are valid for one hour.");await loadItems();
     }catch(e){message("editor-message",e.message,true);}
   }
   $("content-form").addEventListener("submit",e=>{e.preventDefault();save($("content-status").value);});
