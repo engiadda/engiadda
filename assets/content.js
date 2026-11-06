@@ -24,7 +24,7 @@
         const label = document.createElement("span"); label.className = "eyebrow"; label.textContent = item.category + (item.subject ? " / " + item.subject : "");
         const title = document.createElement("h3"); title.textContent = item.title;
         const excerpt = document.createElement("p"); excerpt.textContent = item.excerpt || "";
-        const meta = document.createElement("p"); meta.className = "cms-help"; meta.textContent = [item.exam, item.content_type === "resource" ? "Study resource" : "Technical article"].filter(Boolean).join(" · ");
+        const meta = document.createElement("p"); meta.className = "cms-help"; meta.textContent = [item.exam, item.content_type === "resource" ? "Study resource" : item.content_type === "recruitment" ? "Recruitment update" : "Technical article"].filter(Boolean).join(" · ");
         const link = document.createElement("a"); link.className = "text-link";
         if (item.content_type === "resource" && item.file_url) { link.href = item.file_url; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "Open resource →"; }
         else { link.href = "article.html?slug=" + encodeURIComponent(item.slug); link.textContent = "Read article →"; }
@@ -47,7 +47,18 @@
       articleTitle.textContent = item.title;
       document.getElementById("article-meta").textContent = [item.category, item.subject, item.exam].filter(Boolean).join(" / ");
       document.getElementById("article-excerpt").textContent = item.excerpt || "";
-      if (item.content_type === "article") {
+      if (item.content_type === "recruitment") {
+        const labels = { notification:"Official notification", apply:"Apply online", admitCard:"Admit card", result:"Result", officialWebsite:"Official recruitment website" };
+        const container = document.getElementById("recruitment-links");
+        for (const [key, label] of Object.entries(labels)) {
+          const url = item.recruitment_links?.[key];
+          if (!url) continue;
+          const link = document.createElement("a"); link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; link.className = "btn small"; link.textContent = label;
+          container.append(link);
+        }
+        container.hidden = !container.childElementCount;
+      }
+      if (item.content_type === "article" || item.content_type === "recruitment") {
         if (window.marked && window.DOMPurify) {
           document.getElementById("article-body").innerHTML = DOMPurify.sanitize(marked.parse(item.body_markdown || ""));
         } else {
