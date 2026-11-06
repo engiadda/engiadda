@@ -107,5 +107,15 @@
   }
   $("content-form").addEventListener("submit", (event) => { event.preventDefault(); save("published"); });
   $("save-draft").addEventListener("click", () => save("draft"));
+  $("preview-btn").addEventListener("click", () => {
+    const panel = $("preview-panel"); panel.hidden = false;
+    $("preview-title").textContent = $("content-title").value || "Untitled content";
+    $("preview-excerpt").textContent = $("content-excerpt").value;
+    if ($("content-type").value === "article") {
+      if (window.marked && window.DOMPurify) $("preview-output").innerHTML = DOMPurify.sanitize(marked.parse($("content-body").value || ""));
+      else $("preview-output").textContent = $("content-body").value || "";
+    } else { $("preview-output").textContent = currentFile ? "Resource file: " + currentFile.fileName : "Resource preview will be available after upload."; }
+    panel.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  });
   toggleType(); checkSession();
 })();
