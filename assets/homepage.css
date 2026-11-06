@@ -153,8 +153,6 @@
  .home-page .nav-actions .btn{padding:0 10px;font-size:11px}
  .home-page .brand{font-size:22px}
  .home-kicker{font-size:11px;letter-spacing:.45px}
- .home-visual-top,.home-visual-bottom{font-size:10px}
- .home-visual-bottom{gap:8px}
  .home-hero h1{font-size:54px;letter-spacing:-3.4px}
 }
 @media(prefers-reduced-motion:reduce){
