@@ -32,6 +32,7 @@ jobs:
           node --check functions/cms.js
           node --check assets/admin.js
           node --check assets/content.js
+          node --check assets/config.js
           node --check scripts/hash-cms-password.mjs
       - name: Run existing test suite
         run: npm test
