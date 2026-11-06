@@ -57,7 +57,7 @@
 .home-pillar,.home-story{cursor:pointer;text-decoration:none}
 .home-pillar:hover .pillar-link,.home-story:hover .home-story-link{color:var(--home-red)}
 
-.home-latest{padding-top:8px}
+.home-latest{padding-top:58px;padding-bottom:82px}
 .home-latest-head{grid-template-columns:1fr .7fr}
 .home-latest-links{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:18px}
 .home-latest-intro a{display:inline-flex;gap:12px;align-items:center;color:var(--home-red);font-size:15px;font-weight:800}
@@ -66,7 +66,7 @@
 .home-story:hover{transform:translateY(-3px);border-color:#c9bfb3;box-shadow:0 12px 26px rgba(25,25,25,.07)}
 .home-story:first-child{background:#202228;color:#fff;border-color:#202228}
 .home-story-type{font-size:12px;letter-spacing:1.2px;font-weight:800;color:var(--home-red);text-transform:uppercase}
-.home-story-date{display:block;margin-top:9px;color:#7a7d82;font-size:13px;font-weight:700;letter-spacing:.15px}
+.home-story-meta{display:flex;align-items:center;gap:10px;margin-top:9px}.home-story-date{display:block;color:#7a7d82;font-size:13px;font-weight:700;letter-spacing:.15px}.home-story-new{display:inline-flex;align-items:center;padding:4px 7px;background:#fbe8e9;color:#a9212c;font-size:10px;font-weight:900;letter-spacing:1px;border-radius:2px}.home-story:first-child .home-story-new{background:#54262c;color:#ffb8bb}
 .home-story:first-child .home-story-date{color:#b9bbc0}
 .home-story h3{font:800 23px/1.2 Manrope,Arial,sans-serif;letter-spacing:-.55px;margin:24px 0 10px;color:inherit}
 .home-story p{font-size:16px;line-height:1.65;color:#62676e;margin:0}
