@@ -210,3 +210,14 @@
  .home-pillar h3{margin-top:68px;font-size:22px;}
  .home-pillar p{font-size:15px;}
 }
+
+/* Clear interaction affordance for complete homepage cards */
+.home-pillar,.home-story{cursor:pointer;text-decoration:none;}
+.home-pillar:focus-visible,.home-story:focus-visible{outline:3px solid var(--home-red);outline-offset:4px;z-index:2;}
+.home-story{color:inherit;text-decoration:none;}
+.home-story h3{color:inherit;}
+.home-story-link{width:100%;}
+.home-pillar:hover .pillar-link,.home-story:hover .home-story-link{color:var(--home-red);}
+@media(hover:hover){
+ .home-pillar:hover,.home-story:hover{transform:translateY(-3px);}
+}
