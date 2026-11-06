@@ -50,7 +50,7 @@
       for(const item of data.items){
         const card=document.createElement("article");card.className="cms-item";card.dataset.search=(item.title+" "+item.category+" "+(item.content_type||"")).toLowerCase();
         const details=document.createElement("div"),title=document.createElement("b"),meta=document.createElement("span");
-        title.textContent=item.title;meta.textContent=[item.category,item.content_type,item.status].filter(Boolean).join(" · ");details.append(title,meta);
+        title.textContent=item.title;meta.textContent=[item.category,item.content_type,item.scheduled_at && item.status==="published" ? "Scheduled · "+new Date(item.scheduled_at).toLocaleString("en-IN") : item.status].filter(Boolean).join(" · ");details.append(title,meta);
         const actions=document.createElement("div");actions.className="cms-item-actions";
         const edit=document.createElement("button");edit.type="button";edit.className="btn small secondary";edit.textContent="Edit";edit.addEventListener("click",()=>editItem(item));
         const toggle=document.createElement("button");toggle.type="button";toggle.className="btn small secondary";toggle.textContent=item.status==="published"?"Unpublish":"Archive";
