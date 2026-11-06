@@ -21,7 +21,7 @@
     return el;
   };
   const safeUrl = value => {
-    try { const url = new URL(value); return ["https:", "http:"].includes(url.protocol) ? url.href : ""; }
+    try { const url = new URL(value); return url.protocol === "https:" ? url.href : ""; }
     catch { return ""; }
   };
   const formatDate = value => {
@@ -57,10 +57,13 @@
     if (item.kind === "job") return "open";
     const type = inferType(item);
     if (["result", "admit_card", "interview"].includes(type)) return "published";
-    const end = dateOnly(item.metadata?.applicationEnd);
+    const endValue = item.metadata?.applicationEnd;
+    const end = dateOnly(endValue);
     const start = dateOnly(item.metadata?.applicationStart);
     const now = new Date();
-    if (end && end < new Date(now.getFullYear(), now.getMonth(), now.getDate())) return "closed";
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const expired = end && (String(endValue).includes("T") ? end < now : end < today);
+    if (expired) return "closed";
     if (start && start > now) return "open";
     if (item.content_type === "recruitment") return "open";
     return "published";
