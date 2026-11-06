@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "functions/cms.js"
+      - "tests/cms.test.js"
       - "assets/admin.js"
       - "assets/content.js"
       - "scripts/hash-cms-password.mjs"
@@ -31,6 +32,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check functions/cms.js
+          node --check tests/cms.test.js
           node --check assets/admin.js
           node --check assets/content.js
           node --check assets/config.js
