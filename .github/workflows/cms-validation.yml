@@ -4,15 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
-    paths:
-      - "functions/cms.js"
-      - "tests/cms.test.js"
-      - "assets/admin.js"
-      - "assets/content.js"
-      - "scripts/hash-cms-password.mjs"
-      - "migrations/**"
-      - "package.json"
-      - ".github/workflows/cms-validation.yml"
 
 permissions:
   contents: read
