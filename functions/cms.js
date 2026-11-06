@@ -52,7 +52,7 @@ async function verifyPassword(password, env) {
   const actual = await scrypt(password, Buffer.from(salt, "hex"), 64);
   return equal(actual, Buffer.from(digest, "hex"));
 }
-function requireAdmin(c, next) {
+function requireAdmin(c, next, env, clock) {
   const token = (c.req.header("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token || !validToken(token, env, clock())) return jsonError(c, "Admin authentication required", 401);
   return next();
@@ -70,17 +70,18 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       const params = [];
       let where = "status = 'published'";
       if (category) { params.push(category); where += " AND category = $1"; }
-      const result = await db.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE ${where} ORDER BY published_at DESC NULLS LAST LIMIT 100`, params);
-      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key, storage) : null })));
+      const result = await db.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE ${where} AND published_at IS NOT NULL AND published_at <= NOW() ORDER BY published_at DESC LIMIT 100`, params);
+      const items = await Promise.all(result.rows.map(async row => { const { file_key, ...item } = row; return { ...item, file_url: file_key ? await fileUrl(file_key, storage) : null }; }));
       return c.json({ items }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS list failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
   app.get("/api/content/:slug", async (c) => {
     try {
-      const result = await pool.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE slug=$1 AND status='published' LIMIT 1", [safeText(c.req.param("slug"), 260)]);
+      const result = await db.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE slug=$1 AND status='published' AND published_at IS NOT NULL AND published_at <= NOW() LIMIT 1", [safeText(c.req.param("slug"), 260)]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
       const row = result.rows[0];
-      return c.json({ item: { ...row, file_url: row.file_key ? await fileUrl(row.file_key) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
+      const { file_key, ...item } = row;
+      return c.json({ item: { ...item, file_url: file_key ? await fileUrl(file_key, storage) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS detail failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
 
@@ -91,23 +92,23 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     if (password.length < 1 || password.length > 256) return jsonError(c, "Invalid credentials", 401);
     try {
       const key = "admin";
-      const state = await pool.query("SELECT attempts, locked_until FROM cms.cms_login_attempts WHERE username=$1", [key]);
+      const state = await db.query("SELECT attempts, locked_until FROM cms.cms_login_attempts WHERE username=$1", [key]);
       if (state.rowCount && state.rows[0].locked_until && new Date(state.rows[0].locked_until) > new Date()) return jsonError(c, "Too many attempts. Try again later.", 429);
       if (!(await verifyPassword(password, env))) {
-        await pool.query(`INSERT INTO cms.cms_login_attempts AS attempts_row (username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
+        await db.query(`INSERT INTO cms.cms_login_attempts AS attempts_row (username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
           ON CONFLICT(username) DO UPDATE SET attempts=CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN 1 ELSE attempts_row.attempts+1 END,
           window_started=CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN now() ELSE attempts_row.window_started END,
           locked_until=CASE WHEN (CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN 1 ELSE attempts_row.attempts+1 END) >= 8 THEN now()+interval '15 minutes' ELSE NULL END`, [key]);
         return jsonError(c, "Invalid credentials", 401);
       }
-      await pool.query("DELETE FROM cms.cms_login_attempts WHERE username=$1", [key]);
+      await db.query("DELETE FROM cms.cms_login_attempts WHERE username=$1", [key]);
       return c.json({ token: issueToken(env, clock()), expires_in: 7200 });
     } catch (error) { console.error("CMS login failed:", error.message); return jsonError(c, "Login service unavailable", 503); }
   });
 
   app.use("/api/admin/*", async (c, next) => {
     if (c.req.path === "/api/admin/login") return next();
-    return requireAdmin(c, next);
+    return requireAdmin(c, next, env, clock);
   });
   app.get("/api/admin/session", (c) => c.json({ authenticated: true, expires_in: 7200 }));
   app.get("/api/admin/content", async (c) => {
@@ -116,13 +117,13 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       const params = [];
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
-      const result = await pool.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
-      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key) : null })));
+      const result = await db.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
+      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key, storage) : null })));
       return c.json({ items });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
   app.post("/api/admin/uploads/presign", async (c) => {
-    if (!s3) return jsonError(c, "File storage is not configured on this deployment", 503);
+    if (!storage) return jsonError(c, "File storage is not configured on this deployment", 503);
     let body; try { body = await c.req.json(); } catch { return jsonError(c, "Invalid JSON"); }
     const name = safeText(body.fileName, 255);
     const type = safeText(body.contentType, 120).toLowerCase();
@@ -132,7 +133,7 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     const key = `resources/${new Date().toISOString().slice(0,10)}/${randomBytes(16).toString("hex")}.${ext}`;
     try {
       const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: type, ContentLength: size, CacheControl: "private, no-store" });
-      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
+      const uploadUrl = await getSignedUrl(storage, command, { expiresIn: 600 });
       return c.json({ uploadUrl, fileKey: key, fileName: name, fileMime: type, fileSizeBytes: size, expiresIn: 600 });
     } catch (error) { console.error("CMS upload signing failed:", error.message); return jsonError(c, "Unable to prepare upload", 503); }
   });
@@ -143,9 +144,9 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     const status = safeText(body.status, 20);
     if (!["draft", "published", "archived"].includes(status)) return jsonError(c, "Invalid status");
     try {
-      const result = await pool.query("UPDATE cms.content_items SET status=$2, published_at=CASE WHEN $2='published' THEN COALESCE(published_at,now()) ELSE published_at END, updated_at=now() WHERE id=$1 RETURNING id,status", [c.req.param("id"), status]);
+      const result = await db.query("UPDATE cms.content_items SET status=$2, published_at=CASE WHEN $2='published' THEN COALESCE(published_at,now()) ELSE published_at END, updated_at=now() WHERE id=$1 RETURNING id,status", [c.req.param("id"), status]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
-      await pool.query("INSERT INTO cms.cms_audit_log(action,content_id) VALUES ($1,$2)", [status, c.req.param("id")]);
+      await db.query("INSERT INTO cms.cms_audit_log(action,content_id) VALUES ($1,$2)", [status, c.req.param("id")]);
       return c.json({ item: result.rows[0] });
     } catch (error) { console.error("CMS status update failed:", error.message); return jsonError(c, "Unable to update content", 503); }
   });
@@ -173,7 +174,7 @@ async function saveContent(c, id, { db, storage }) {
       ? await db.query(`UPDATE cms.content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$17 RETURNING *`, [...values, id])
       : await db.query(`INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *`, values);
     if (!result.rowCount) return jsonError(c, "Content not found", 404);
-    await pool.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
+    await db.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
     return c.json({ item: { ...result.rows[0], file_url: key ? await fileUrl(key, storage) : null } }, id ? 200 : 201);
   } catch (error) {
     if (error.code === "23505") return jsonError(c, "That URL slug is already in use", 409);
