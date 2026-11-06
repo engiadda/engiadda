@@ -147,7 +147,94 @@ app.get("/api/jobs", async (c) => {
     const discipline = cleanText(c.req.query("discipline"), 100);
 
     const params = [];
-    const filters = ["official = TRUE", "(deadline IS NULL OR deadline >= CURRENT_DATE)"];
+    const filters = [
+      "official = TRUE",
+      "(deadline IS NULL OR deadline >= CURRENT_DATE)",
+      "(category IS DISTINCT FROM 'private' OR CASE WHEN published_at ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}
+
+    if (search) {
+      params.push(`%${search}%`);
+      filters.push(`(title ILIKE $${params.length} OR company ILIKE $${params.length} OR location ILIKE $${params.length} OR engineering_discipline ILIKE $${params.length})`);
+    }
+    if (category) {
+      params.push(category);
+      filters.push(`category = $${params.length}`);
+    }
+    if (discipline) {
+      params.push(`%${discipline}%`);
+      filters.push(`engineering_discipline ILIKE $${params.length}`);
+    }
+
+    params.push(limit);
+    const limitPosition = params.length;
+    params.push(offset);
+    const offsetPosition = params.length;
+
+    const query = `SELECT id, title, company, url, source, published_at, application_start, deadline,
+      recruitment_type, vacancies, department, age_limit, eligibility, qualification, location,
+      category, official, experience_level, engineering_discipline, employment_type, work_mode,
+      skills, salary, created_at, updated_at
+      FROM jobs WHERE ${filters.join(" AND ")}
+      ORDER BY (deadline IS NULL) ASC, deadline ASC NULLS LAST, created_at DESC
+      LIMIT $${limitPosition} OFFSET $${offsetPosition}`;
+
+    const result = await pool.query(query, params);
+    c.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return c.json({ jobs: result.rows, limit, offset, count: result.rowCount });
+  } catch (error) {
+    console.error("Job feed query failed:", error.message);
+    return c.json({ error: "Unable to load jobs right now" }, 503);
+  }
+});
+
+app.post("/api/jobs/ingest", async (c) => {
+  const expected = process.env.WEBSITE_WEBHOOK_TOKEN;
+  const authorization = c.req.header("authorization") || "";
+  const provided = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+
+  if (!expected) return c.json({ error: "Job ingestion is not configured" }, 503);
+  if (!safeEqual(provided, expected)) return c.json({ error: "Unauthorized" }, 401);
+
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const job = normalizeJob(body);
+  if (job.error) return c.json({ error: job.error }, 400);
+
+  try {
+    const fields = Object.keys(job);
+    const values = fields.map((field) => job[field]);
+    const placeholders = fields.map((_, index) => `$${index + 1}`);
+    const updates = fields
+      .filter((field) => field !== "id")
+      .map((field) => `${field} = EXCLUDED.${field}`);
+
+    const query = `INSERT INTO jobs (${fields.join(", ")}) VALUES (${placeholders.join(", ")})
+      ON CONFLICT (id) DO UPDATE SET ${updates.join(", ")}, updated_at = NOW()
+      RETURNING id`;
+
+    const result = await pool.query(query, values);
+    return c.json({ status: "accepted", id: result.rows[0].id }, 202);
+  } catch (error) {
+    console.error("Job ingestion failed:", error.message);
+    return c.json({ error: "Unable to publish job right now" }, 503);
+  }
+});
+
+app.notFound((c) => c.json({ error: "Route not found" }, 404));
+app.onError((error, c) => {
+  console.error("Unhandled Jobs API error:", error.message);
+  return c.json({ error: "Internal server error" }, 500);
+});
+
+export { app };
+export default app;
+ THEN published_at::date >= CURRENT_DATE - INTERVAL '60 days' ELSE FALSE END)",
+    ];
 
     if (search) {
       params.push(`%${search}%`);
