@@ -1,6 +1,8 @@
 name: Package CMS Neon Function
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [feature/admin-cms]
     paths:
