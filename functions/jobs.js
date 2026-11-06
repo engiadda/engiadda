@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { attachDatabasePool } from "@neon/functions";
 import { cors } from "hono/cors";
 import pg from "pg";
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -32,17 +33,26 @@ export async function verifyPublisherToken(token, jwks = GITHUB_OIDC_JWKS) {
   }
 }
 
+function getDatabaseConnectionString() {
+  const raw = process.env.JOBS_DATABASE_URL || process.env.DATABASE_URL;
+  if (!raw) return undefined;
+  const url = new URL(raw);
+  url.searchParams.set("sslmode", "verify-full");
+  return url.toString();
+}
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: getDatabaseConnectionString(),
   max: 5,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-  ssl: { rejectUnauthorized: true },
 });
 
 pool.on("error", (error) => {
   console.error("Unexpected idle PostgreSQL client error:", error.message);
 });
+
+attachDatabasePool(pool);
 
 function cleanText(value, max = 2_000) {
   if (value === undefined || value === null) return null;
