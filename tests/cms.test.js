@@ -149,7 +149,7 @@ test("CMS content deletion requires admin authentication", async () => {
 
 test("CMS deletion removes an article and retains an audit snapshot", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: null }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: null }], rowCount: 1 };
     if (sql.includes("WITH target AS MATERIALIZED")) {
       assert.match(sql, /INSERT INTO cms\.cms_audit_log/);
       assert.match(sql, /DELETE FROM cms\.content_items/);
@@ -169,7 +169,7 @@ test("CMS deletion removes an article and retains an audit snapshot", async () =
 
 test("CMS resource deletion removes its private object from storage", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", title: "PDF", slug: "pdf", content_type: "resource", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
@@ -185,7 +185,7 @@ test("CMS resource deletion removes its private object from storage", async () =
 
 test("CMS deletion reports missing content without deleting storage", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [], rowCount: 0 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [], rowCount: 0 };
     if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [], rowCount: 0 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
@@ -200,7 +200,7 @@ test("CMS deletion reports missing content without deleting storage", async () =
 
 test("CMS resource deletion is blocked when object storage is not configured", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
   });
