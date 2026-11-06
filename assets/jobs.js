@@ -48,7 +48,7 @@
     const type = String(item.content_type || "").toLowerCase();
     const title = [item.title, ...(Array.isArray(item.tags) ? item.tags : [])].join(" ").toLowerCase();
     if (type === "result" || /\b(result|merit list|score card)\b/.test(title)) return "result";
-    if (/\b(admit card|hall ticket|call letter)\b/.test(title) || item.recruitment_links?.admitCard) return "admit_card";
+    if (/\b(admit card|hall ticket|call letter)\b/.test(title)) return "admit_card";
     if (/\b(interview|shortlist|selection list|document verification)\b/.test(title)) return "interview";
     if (type === "recruitment") return "recruitment";
     if (["exam_update", "syllabus"].includes(type)) return "recruitment";
