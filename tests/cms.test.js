@@ -102,7 +102,7 @@ test("CMS public list only selects published content whose publish time has arri
 });
 
 test("CMS public detail endpoint excludes scheduled content and hides object keys", async () => {
-  const db = fakeDb(async () => ({ rows: [{ id: "1", title: "Published", file_key: "resources/private.pdf" }], rowCount: 1 }));
+  const db = fakeDb(async () => ({ rows: [{ id: "1", title: "Published", file_key: "resources/private.pdf", attachments: [{ fileKey: "resources/private.pdf", fileName: "private.pdf", fileMime: "application/pdf", fileSizeBytes: 100 }] }], rowCount: 1 }));
   const app = appFor(db);
   const response = await app.request("/api/content/example");
   assert.equal(response.status, 200);
@@ -149,7 +149,7 @@ test("CMS content deletion requires admin authentication", async () => {
 
 test("CMS deletion removes an article and retains an audit snapshot", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: null }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: null }], rowCount: 1 };
     if (sql.includes("WITH target AS MATERIALIZED")) {
       assert.match(sql, /INSERT INTO cms\.cms_audit_log/);
       assert.match(sql, /DELETE FROM cms\.content_items/);
@@ -169,7 +169,7 @@ test("CMS deletion removes an article and retains an audit snapshot", async () =
 
 test("CMS resource deletion removes its private object from storage", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", title: "PDF", slug: "pdf", content_type: "resource", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
@@ -185,7 +185,7 @@ test("CMS resource deletion removes its private object from storage", async () =
 
 test("CMS deletion reports missing content without deleting storage", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [], rowCount: 0 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [], rowCount: 0 };
     if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [], rowCount: 0 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
@@ -200,7 +200,7 @@ test("CMS deletion reports missing content without deleting storage", async () =
 
 test("CMS resource deletion is blocked when object storage is not configured", async () => {
   const db = fakeDb(async (sql) => {
-    if (sql.includes("SELECT id, file_key FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
     if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
     return { rows: [], rowCount: 1 };
   });
@@ -233,4 +233,79 @@ test("CMS recruitment update validates and stores official links", async () => {
   assert.equal(invalid.status, 400);
   const valid = await req(app, "/api/admin/content", { method: "POST", token, body: { contentType: "recruitment", title: "Recruitment", category: "Career Guidance", bodyMarkdown: "# Details", recruitmentLinks: { notification: "https://example.gov.in/notice.pdf", apply: "https://example.gov.in/apply" } } });
   assert.equal(valid.status, 201);
+});
+
+
+test("CMS redesigned publishing stores disciplines, structured recruitment metadata and attachments", async () => {
+  const db = fakeDb(async (sql, params) => {
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    if (sql.includes("INSERT INTO cms.content_items")) {
+      assert.match(sql, /disciplines/);
+      assert.match(sql, /metadata/);
+      assert.match(sql, /attachments/);
+      assert.deepEqual(params[17], ["Electrical Engineering", "Civil Engineering"]);
+      const metadata = JSON.parse(params[21]);
+      assert.equal(metadata.organization, "POWERGRID");
+      assert.equal(metadata.vacancies, 319);
+      assert.equal(metadata.applicationEnd, "2026-11-18T18:29:00.000Z");
+      const attachments = JSON.parse(params[22]);
+      assert.equal(attachments.length, 1);
+      assert.equal(attachments[0].fileKey, "resources/2026/notice.pdf");
+      return { rows: [{ id: "new-recruitment", title: "POWERGRID Engineer Trainee", content_type: "recruitment", attachments: [] }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content", {
+    method: "POST", token,
+    body: {
+      contentType: "recruitment", title: "POWERGRID Engineer Trainee", category: "Government / PSU Jobs",
+      bodyMarkdown: "# Recruitment details", status: "draft",
+      disciplines: ["Electrical Engineering", "Civil Engineering"],
+      metadata: { organization: "POWERGRID", vacancies: 319, applicationEnd: "2026-11-18T18:29:00.000Z" },
+      attachments: [{ fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 1024 }],
+      recruitmentLinks: { notification: "https://powergrid.in/notice.pdf", apply: "https://careers.powergrid.in/" }
+    }
+  });
+  assert.equal(response.status, 201);
+});
+
+test("CMS rejects attachments with invalid storage keys or unsupported MIME types", async () => {
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content", {
+    method: "POST", token,
+    body: {
+      contentType: "article", title: "Invalid attachment test", category: "Technology", bodyMarkdown: "Body",
+      attachments: [{ fileKey: "../private.pdf", fileName: "private.pdf", fileMime: "application/pdf", fileSizeBytes: 100 }]
+    }
+  });
+  assert.equal(response.status, 400);
+});
+
+
+test("CMS deletion removes every attached object from private storage", async () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const attachments = [
+    { fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 100 },
+    { fileKey: "resources/2026/syllabus.pdf", fileName: "syllabus.pdf", fileMime: "application/pdf", fileSizeBytes: 200 }
+  ];
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id, file_key: null, attachments }], rowCount: 1 };
+    if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [{ id, title: "Multi-file resource", slug: "multi-file", content_type: "resource", file_key: null, attachments }], rowCount: 1 };
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const deleted = [];
+  const storage = { send: async command => { deleted.push(command.input.Key); return {}; } };
+  const app = appFor(db, { hash: await passwordHash(), storage });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/" + id, { method: "DELETE", token });
+  assert.equal(response.status, 200);
+  assert.deepEqual(deleted, ["resources/2026/notice.pdf", "resources/2026/syllabus.pdf"]);
 });

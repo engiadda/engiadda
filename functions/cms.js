@@ -57,7 +57,8 @@ function requireAdmin(c, next, env, clock) {
   if (!token || !validToken(token, env, clock())) return jsonError(c, "Admin authentication required", 401);
   return next();
 }
-async function fileUrl(key, storage) { if (!storage) return null; return getSignedUrl(storage, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 }); }
+async function fileUrl(key, storage) { if (!storage || !key) return null; return getSignedUrl(storage, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 }); }
+async function withFileUrls(row, storage, includeKeys = false, includeUrls = true) { const { file_key, ...item } = row; return { ...item, file_url: includeUrls && file_key ? await fileUrl(file_key, storage) : null, attachments: await Promise.all((Array.isArray(row.attachments) ? row.attachments : []).map(async file => ({ ...(includeKeys ? { fileKey: file.fileKey } : {}), fileName: file.fileName, fileMime: file.fileMime, fileSizeBytes: file.fileSizeBytes, label: file.label, url: includeUrls && file?.fileKey ? await fileUrl(file.fileKey, storage) : null }))) }; }
 
 export function createCmsApp({ db = pool, env = process.env, storage = s3, clock = () => Date.now() } = {}) {
   if (!db || typeof db.query !== "function") throw new Error("CMS database adapter is required");
@@ -70,18 +71,17 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       const params = [];
       let where = "status = 'published'";
       if (category) { params.push(category); where += " AND category = $1"; }
-      const result = await db.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, recruitment_links, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE ${where} AND published_at IS NOT NULL AND published_at <= NOW() ORDER BY published_at DESC LIMIT 100`, params);
-      const items = await Promise.all(result.rows.map(async row => { const { file_key, ...item } = row; return { ...item, file_url: file_key ? await fileUrl(file_key, storage) : null }; }));
+      const result = await db.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, disciplines, author, featured_image_url, metadata, attachments, recruitment_links, file_key, file_name, file_mime, published_at, scheduled_at FROM cms.content_items WHERE ${where} AND published_at IS NOT NULL AND published_at <= NOW() AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY published_at DESC LIMIT 100`, params);
+      const items = await Promise.all(result.rows.map(row => withFileUrls(row, storage, false, false)));
       return c.json({ items }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS list failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
   app.get("/api/content/:slug", async (c) => {
     try {
-      const result = await db.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, recruitment_links, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE slug=$1 AND status='published' AND published_at IS NOT NULL AND published_at <= NOW() LIMIT 1", [safeText(c.req.param("slug"), 260)]);
+      const result = await db.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, disciplines, author, featured_image_url, metadata, attachments, recruitment_links, file_key, file_name, file_mime, published_at, scheduled_at FROM cms.content_items WHERE slug=$1 AND status='published' AND published_at IS NOT NULL AND published_at <= NOW() AND (scheduled_at IS NULL OR scheduled_at <= NOW()) LIMIT 1", [safeText(c.req.param("slug"), 260)]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
-      const row = result.rows[0];
-      const { file_key, ...item } = row;
-      return c.json({ item: { ...item, file_url: file_key ? await fileUrl(file_key, storage) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
+      const item = await withFileUrls(result.rows[0], storage);
+      return c.json({ item }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS detail failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
 
@@ -118,7 +118,7 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
       const result = await db.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
-      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key, storage) : null })));
+      const items = await Promise.all(result.rows.map(async row => ({ ...(await withFileUrls(row, storage, true, false)), file_key: row.file_key })));
       return c.json({ items });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
@@ -145,9 +145,9 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     try {
       // Do not remove a resource record when object storage is unavailable:
       // doing so would orphan its private file with no way to clean it up.
-      const existing = await db.query("SELECT id, file_key FROM cms.content_items WHERE id=$1", [id]);
+      const existing = await db.query("SELECT id, file_key, attachments FROM cms.content_items WHERE id=$1", [id]);
       if (!existing.rowCount) return jsonError(c, "Content not found", 404);
-      if (existing.rows[0].file_key && !storage) return jsonError(c, "File storage is not configured; content was not deleted", 503);
+      if ((existing.rows[0].file_key || (Array.isArray(existing.rows[0].attachments) && existing.rows[0].attachments.length)) && !storage) return jsonError(c, "File storage is not configured; content was not deleted", 503);
       // Keep a durable audit snapshot, then remove the row in one SQL statement.
       // The audit table intentionally has no FK to content_items, so history survives deletion.
       const result = await db.query(`
@@ -167,23 +167,22 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
           DELETE FROM cms.content_items AS item
           USING target, audit
           WHERE item.id=target.id
-          RETURNING item.id, item.title, item.slug, item.content_type, item.file_key
+          RETURNING item.id, item.title, item.slug, item.content_type, item.file_key, item.attachments
         )
         SELECT * FROM deleted
       `, [id]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
       const item = result.rows[0];
-      if (item.file_key) {
-        if (!storage) {
-          console.error("CMS content deleted but storage cleanup is unavailable:", item.file_key);
-          return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
-        }
+      const fileKeys = [...new Set([item.file_key, ...(Array.isArray(item.attachments) ? item.attachments.map(file => file?.fileKey) : [])].filter(key => typeof key === "string" && key.startsWith("resources/")))];
+      if (fileKeys.length && !storage) {
+        console.error("CMS content deleted but storage cleanup is unavailable:", fileKeys);
+        return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
+      }
+      for (const fileKey of fileKeys) {
         try {
-          await storage.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: item.file_key }));
+          await storage.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: fileKey }));
         } catch (storageError) {
-          // The bucket is private and no content row remains to issue a download URL.
-          // Preserve the successful content deletion and report the orphaned object for cleanup.
-          console.error("CMS storage cleanup pending:", storageError.message);
+          console.error("CMS storage cleanup pending:", fileKey, storageError.message);
           return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
         }
       }
@@ -211,40 +210,58 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
 
 async function saveContent(c, id, { db, storage }) {
   let body; try { body = await c.req.json(); } catch { return jsonError(c, "Invalid JSON"); }
-  const type = safeText(body.contentType, 20);
-  const title = safeText(body.title, 240);
-  const category = safeText(body.category, 100);
-  const slug = slugify(body.slug || title);
-  const status = safeText(body.status || "draft", 20);
+  const allowedTypes = ["article","resource","recruitment","exam_update","result","syllabus","tutorial","career_guidance"];
+  const type = safeText(body.contentType, 30), title = safeText(body.title, 240), category = safeText(body.category, 100);
+  const slug = slugify(body.slug || title), status = safeText(body.status || "draft", 20);
   const markdown = typeof body.bodyMarkdown === "string" ? body.bodyMarkdown.slice(0, 100000) : null;
-  if (!["article", "resource", "recruitment"].includes(type) || !title || !category || !slug || !["draft", "published"].includes(status)) return jsonError(c, "Content type, title, category, slug and valid status are required");
-  if ((type === "article" || type === "recruitment") && !markdown?.trim()) return jsonError(c, "Article body is required");
+  if (!allowedTypes.includes(type) || !title || !category || !slug || !["draft","published"].includes(status)) return jsonError(c, "Content type, title, category, slug and valid status are required");
+  if (type !== "resource" && !markdown?.trim()) return jsonError(c, "Content body is required");
   const linkInput = body.recruitmentLinks && typeof body.recruitmentLinks === "object" && !Array.isArray(body.recruitmentLinks) ? body.recruitmentLinks : {};
-  const linkFields = ["notification", "apply", "admitCard", "result", "officialWebsite"];
-  const recruitmentLinks = {};
+  const linkFields = ["notification","apply","admitCard","result","officialWebsite"], recruitmentLinks = {};
   for (const field of linkFields) {
     const value = safeText(linkInput[field], 2048);
     if (!value) { recruitmentLinks[field] = null; continue; }
-    try { const url = new URL(value); if (!["http:", "https:"].includes(url.protocol) || !url.hostname) throw new Error("invalid"); recruitmentLinks[field] = url.toString(); }
-    catch { return jsonError(c, `Invalid URL for recruitment link: ${field}`); }
+    try { const url = new URL(value); if (!["http:","https:"].includes(url.protocol) || !url.hostname) throw new Error("invalid"); recruitmentLinks[field] = url.toString(); }
+    catch { return jsonError(c, "Invalid URL for recruitment link: " + field); }
   }
-  if (type === "recruitment" && ![recruitmentLinks.notification, recruitmentLinks.apply, recruitmentLinks.officialWebsite].some(Boolean)) return jsonError(c, "Add at least one official notification, apply-online or recruitment-website URL");
+  if (type === "recruitment" && ![recruitmentLinks.notification,recruitmentLinks.apply,recruitmentLinks.officialWebsite].some(Boolean)) return jsonError(c, "Add at least one official notification, apply-online or recruitment-website URL");
   const key = safeText(body.fileKey, 1024) || null;
   if (key && !key.startsWith("resources/")) return jsonError(c, "Invalid file key");
   if (type === "resource" && !key) return jsonError(c, "Upload a resource file before saving");
-  const values = [type,title,slug,safeText(body.excerpt,600),markdown,category,safeText(body.subject,120),safeText(body.exam,120),Array.isArray(body.tags)?body.tags.filter(x=>typeof x==="string").slice(0,20).map(x=>safeText(x,50)):[],status,key,safeText(body.fileName,255)||null,safeText(body.fileMime,120)||null,body.fileSizeBytes !== null && body.fileSizeBytes !== undefined && body.fileSizeBytes !== "" && Number.isSafeInteger(Number(body.fileSizeBytes)) ? Number(body.fileSizeBytes) : null,safeText(body.seoTitle,70)||null,safeText(body.seoDescription,180)||null,JSON.stringify(type === "recruitment" ? recruitmentLinks : {})];
+  const disciplines = Array.isArray(body.disciplines) ? [...new Set(body.disciplines.filter(x => typeof x === "string").map(x => safeText(x,80)).filter(Boolean))].slice(0,12) : [];
+  const metadata = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : {};
+  if (JSON.stringify(metadata).length > 30000) return jsonError(c, "Structured content details are too large");
+  const inputFiles = Array.isArray(body.attachments) ? body.attachments : [];
+  if (inputFiles.length > 12) return jsonError(c, "A maximum of 12 attachments is allowed");
+  const attachments = [];
+  for (const file of inputFiles) {
+    const fileKey = safeText(file?.fileKey,1024), fileName = safeText(file?.fileName,255), fileMime = safeText(file?.fileMime,120).toLowerCase(), fileSizeBytes = Number(file?.fileSizeBytes);
+    if (!fileKey.startsWith("resources/") || !fileName || !MIME_EXT.has(fileMime) || !Number.isSafeInteger(fileSizeBytes) || fileSizeBytes < 1 || fileSizeBytes > MAX_FILE_BYTES) return jsonError(c, "An attachment has invalid file metadata");
+    attachments.push({ fileKey,fileName,fileMime,fileSizeBytes,label:safeText(file?.label,100)||fileName });
+  }
+  let scheduledAt = null;
+  if (body.scheduledAt) { const parsed = new Date(body.scheduledAt); if (Number.isNaN(parsed.getTime())) return jsonError(c, "Scheduled publication date is invalid"); scheduledAt = parsed.toISOString(); }
+  const featuredImageUrl = safeText(body.featuredImageUrl,2048);
+  if (featuredImageUrl) { try { const url = new URL(featuredImageUrl); if (!["http:","https:"].includes(url.protocol)) throw new Error("invalid"); } catch { return jsonError(c, "Featured image must be a valid HTTP or HTTPS URL"); } }
+  const values = [
+    type,title,slug,safeText(body.excerpt,600),markdown,category,safeText(body.subject,120),safeText(body.exam,120),
+    Array.isArray(body.tags)?body.tags.filter(x=>typeof x==="string").slice(0,30).map(x=>safeText(x,50)):[],
+    status,key,safeText(body.fileName,255)||null,safeText(body.fileMime,120)||null,
+    body.fileSizeBytes !== null && body.fileSizeBytes !== undefined && body.fileSizeBytes !== "" && Number.isSafeInteger(Number(body.fileSizeBytes)) ? Number(body.fileSizeBytes) : null,
+    safeText(body.seoTitle,70)||null,safeText(body.seoDescription,180)||null,JSON.stringify(type==="recruitment"?recruitmentLinks:{}),
+    disciplines,safeText(body.author,120)||null,featuredImageUrl||null,scheduledAt,JSON.stringify(metadata),JSON.stringify(attachments)
+  ];
   try {
     const result = id
-      ? await db.query(`UPDATE cms.content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,recruitment_links=$17::jsonb,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$18 RETURNING *`, [...values, id])
-      : await db.query(`INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,recruitment_links,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *`, values);
+      ? await db.query("UPDATE cms.content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,recruitment_links=$17::jsonb,disciplines=$18,author=$19,featured_image_url=$20,scheduled_at=$21,metadata=$22::jsonb,attachments=$23::jsonb,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$24 RETURNING *", [...values,id])
+      : await db.query("INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,recruitment_links,disciplines,author,featured_image_url,scheduled_at,metadata,attachments,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22::jsonb,$23::jsonb,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *", values);
     if (!result.rowCount) return jsonError(c, "Content not found", 404);
-    await db.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
-    return c.json({ item: { ...result.rows[0], file_url: key ? await fileUrl(key, storage) : null } }, id ? 200 : 201);
+    await db.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id?"updated":"created",result.rows[0].id,JSON.stringify({status,contentType:type})]);
+    return c.json({ item: await withFileUrls(result.rows[0],storage) },id?200:201);
   } catch (error) {
-    if (error.code === "23505") return jsonError(c, "That URL slug is already in use", 409);
-    console.error("CMS save failed:", error.message); return jsonError(c, "Unable to save content", 503);
+    if (error.code==="23505") return jsonError(c,"That URL slug is already in use",409);
+    console.error("CMS save failed:",error.message); return jsonError(c,"Unable to save content",503);
   }
 }
-
 export const app = createCmsApp({ db: pool || { query: async () => { throw new Error("CMS_DATABASE_URL is not configured"); } } });
 export default app;
