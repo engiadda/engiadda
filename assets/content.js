@@ -48,8 +48,11 @@
       document.getElementById("article-meta").textContent = [item.category, item.subject, item.exam].filter(Boolean).join(" / ");
       document.getElementById("article-excerpt").textContent = item.excerpt || "";
       if (item.content_type === "article") {
-        const raw = window.marked ? marked.parse(item.body_markdown || "") : esc(item.body_markdown || "");
-        document.getElementById("article-body").innerHTML = window.DOMPurify ? DOMPurify.sanitize(raw) : raw;
+        if (window.marked && window.DOMPurify) {
+          document.getElementById("article-body").innerHTML = DOMPurify.sanitize(marked.parse(item.body_markdown || ""));
+        } else {
+          document.getElementById("article-body").textContent = item.body_markdown || "";
+        }
       } else if (item.file_url) {
         const link = document.createElement("a"); link.href = item.file_url; link.target = "_blank"; link.rel = "noopener noreferrer"; link.className = "btn"; link.textContent = "Open / download resource";
         document.getElementById("resource-download").append(link);
