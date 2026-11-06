@@ -264,7 +264,8 @@ test("CMS redesigned publishing stores disciplines, structured recruitment metad
       bodyMarkdown: "# Recruitment details", status: "draft",
       disciplines: ["Electrical Engineering", "Civil Engineering"],
       metadata: { organization: "POWERGRID", vacancies: 319, applicationEnd: "2026-11-18T18:29:00.000Z" },
-      attachments: [{ fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 1024 }]
+      attachments: [{ fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 1024 }],
+      recruitmentLinks: { notification: "https://powergrid.in/notice.pdf", apply: "https://careers.powergrid.in/" }
     }
   });
   assert.equal(response.status, 201);
