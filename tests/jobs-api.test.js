@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app, pool, normalizeJob } from "../functions/jobs.js";
+import { app, createApp, pool, normalizeJob, isTrustedPublisherClaims } from "../functions/jobs.js";
 
 const validJob = {
   id: "engiadda-test-001",
@@ -42,32 +42,38 @@ test("job normalization rejects expired deadlines", () => {
   assert.match(normalizeJob({ ...validJob, deadline: "2000-01-01" }).error, /Expired/);
 });
 
-test("ingestion rejects missing configuration and invalid bearer tokens", async () => {
-  const previous = process.env.WEBSITE_WEBHOOK_TOKEN;
-  delete process.env.WEBSITE_WEBHOOK_TOKEN;
+test("ingestion rejects missing or invalid GitHub OIDC bearer tokens", async () => {
   const missing = await app.request("/api/jobs/ingest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(validJob),
   });
-  assert.equal(missing.status, 503);
+  assert.equal(missing.status, 401);
 
-  process.env.WEBSITE_WEBHOOK_TOKEN = "expected-secret";
   const invalid = await app.request("/api/jobs/ingest", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer wrong-secret" },
+    headers: { "Content-Type": "application/json", Authorization: "Bearer malformed-token" },
     body: JSON.stringify(validJob),
   });
   assert.equal(invalid.status, 401);
+});
 
-  if (previous === undefined) delete process.env.WEBSITE_WEBHOOK_TOKEN;
-  else process.env.WEBSITE_WEBHOOK_TOKEN = previous;
+test("publisher OIDC claims are restricted to the production job-agent workflow", () => {
+  const valid = {
+    repository: "engiadda/engiadda-job-alert-agent",
+    ref: "refs/heads/main",
+    workflow_ref: "engiadda/engiadda-job-alert-agent/.github/workflows/job-alert-agent.yml@refs/heads/main",
+    event_name: "schedule",
+  };
+  assert.equal(isTrustedPublisherClaims(valid), true);
+  assert.equal(isTrustedPublisherClaims({ ...valid, repository: "attacker/other" }), false);
+  assert.equal(isTrustedPublisherClaims({ ...valid, ref: "refs/heads/feature" }), false);
+  assert.equal(isTrustedPublisherClaims({ ...valid, event_name: "pull_request" }), false);
 });
 
 test("authenticated ingestion upserts a verified job", async () => {
-  const previousToken = process.env.WEBSITE_WEBHOOK_TOKEN;
   const originalQuery = pool.query;
-  process.env.WEBSITE_WEBHOOK_TOKEN = "expected-secret";
+  const testApp = createApp({ verifyToken: async (token) => token === "expected-test-token" });
   pool.query = async (query, values) => {
     assert.match(query, /INSERT INTO jobs/);
     assert.match(query, /ON CONFLICT \(id\) DO UPDATE/);
@@ -76,17 +82,15 @@ test("authenticated ingestion upserts a verified job", async () => {
   };
 
   try {
-    const response = await app.request("/api/jobs/ingest", {
+    const response = await testApp.request("/api/jobs/ingest", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer expected-secret" },
+      headers: { "Content-Type": "application/json", Authorization: "Bearer expected-test-token" },
       body: JSON.stringify(validJob),
     });
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), { status: "accepted", id: validJob.id });
   } finally {
     pool.query = originalQuery;
-    if (previousToken === undefined) delete process.env.WEBSITE_WEBHOOK_TOKEN;
-    else process.env.WEBSITE_WEBHOOK_TOKEN = previousToken;
   }
 });
 
