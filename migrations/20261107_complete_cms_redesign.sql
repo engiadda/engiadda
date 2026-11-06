@@ -8,6 +8,12 @@ ALTER TABLE cms.content_items
     'syllabus','tutorial','career_guidance'
   ));
 
+-- The original bootstrap CHECK only allowed article/resource rows; widen it too.
+ALTER TABLE cms.content_items
+  DROP CONSTRAINT IF EXISTS content_items_check,
+  ADD CONSTRAINT content_items_body_requirement_check
+    CHECK (content_type = 'resource' OR (body_markdown IS NOT NULL AND length(btrim(body_markdown)) > 0));
+
 ALTER TABLE cms.content_items
   ADD COLUMN IF NOT EXISTS disciplines text[] NOT NULL DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS author varchar(120),
