@@ -143,6 +143,11 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     const id = safeText(c.req.param("id"), 80);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return jsonError(c, "Invalid content ID", 400);
     try {
+      // Do not remove a resource record when object storage is unavailable:
+      // doing so would orphan its private file with no way to clean it up.
+      const existing = await db.query("SELECT id, file_key FROM cms.content_items WHERE id=$1", [id]);
+      if (!existing.rowCount) return jsonError(c, "Content not found", 404);
+      if (existing.rows[0].file_key && !storage) return jsonError(c, "File storage is not configured; content was not deleted", 503);
       // Keep a durable audit snapshot, then remove the row in one SQL statement.
       // The audit table intentionally has no FK to content_items, so history survives deletion.
       const result = await db.query(`
