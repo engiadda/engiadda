@@ -13,7 +13,8 @@
   "dependencies": {
     "hono": "^4.9.8",
     "pg": "^8.13.1",
-    "jose": "^6.1.0"
+    "jose": "^6.1.0",
+    "@neon/functions": "latest"
   },
   "devDependencies": {
     "@neon/config": "latest"
