@@ -9,6 +9,7 @@
   if (!form || !list || !status || !loadMore) return;
 
   const state = { items: [], visible: 12, loading: false };
+  const params = new URLSearchParams(window.location.search);
   const typeLabels = {
     job: "JOB OPENING", recruitment: "RECRUITMENT", result: "RESULT",
     admit_card: "ADMIT CARD", interview: "INTERVIEW / SELECTION", career: "CAREER UPDATE"
@@ -34,13 +35,13 @@
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
   };
-  const categoryLabel = value => ({ government: "Government", psu: "PSU", private: "Private sector" }[String(value || "").toLowerCase()] || "Engineering");
+  const categoryLabel = value => ({ government: "Government", psu: "PSU", private: "Private sector", "government-psu": "Government & PSU" }[String(value || "").toLowerCase()] || "Engineering");
   const inferSector = item => {
     const category = String(item.category || "").toLowerCase();
     const organisation = [item.metadata?.organization, item.company, item.title].filter(Boolean).join(" ").toLowerCase();
-    if (category === "private" || category.includes("private sector") || /\\bprivate\\b/.test(organisation)) return "private";
-    if (category === "government" || category.includes("government jobs") || /central govt|state govt|\\bgovernment\\b|\\bssc\\b|\\bupsc\\b|\\brailway\\b|\\brrb\\b|\\bisro\\b|\\bdrdo\\b/.test(organisation)) return "government";
-    if (category === "psu" || /\\bpublic sector\\b|\\bpsu\\b|powergrid|power grid|\\bntpc\\b|\\bnhpc\\b|\\bongc\\b|\\bbhel\\b|\\bsail\\b|\\bgail\\b|indian oil|\\biocl\\b|\\bbpcl\\b|\\bhpcl\\b/.test(organisation)) return "psu";
+    if (category === "private" || category.includes("private sector") || /\bprivate\b/.test(organisation)) return "private";
+    if (category === "government" || category.includes("government jobs") || /central govt|state govt|\bgovernment\b|\bssc\b|\bupsc\b|\brailway\b|\brrb\b|\bisro\b|\bdrdo\b/.test(organisation)) return "government";
+    if (category === "psu" || /\bpublic sector\b|\bpsu\b|powergrid|power grid|\bntpc\b|\bnhpc\b|\bongc\b|\bbhel\b|\bsail\b|\bgail\b|indian oil|\biocl\b|\bbpcl\b|\bhpcl\b/.test(organisation)) return "psu";
     return "";
   };
   const inferType = item => {
@@ -158,15 +159,21 @@
     const query = form.elements.search.value.trim().toLowerCase();
     const type = form.elements.type.value;
     const sector = form.elements.category.value;
-    const discipline = form.elements.discipline.value.toLowerCase();
+    const discipline = params.get("discipline") === "engineering" ? "engineering" : form.elements.discipline.value.toLowerCase();
     const statusFilter = form.elements.status.value;
     return state.items.filter(item => {
       if (query && !searchableText(item).includes(query)) return false;
       if (type && inferType(item) !== type) return false;
-      if (sector && inferSector(item) !== sector) return false;
+      const itemSector = inferSector(item);
+      if (sector === "government-psu" && !["government", "psu"].includes(itemSector)) return false;
+      if (sector && sector !== "government-psu" && itemSector !== sector) return false;
       if (discipline) {
-        const values = [item.engineering_discipline, item.subject, ...(Array.isArray(item.disciplines) ? item.disciplines : [])].filter(Boolean).join(" ").toLowerCase();
+        const values = [item.engineering_discipline, item.subject, ...(Array.isArray(item.disciplines) ? item.disciplines : []), searchableText(item)].filter(Boolean).join(" ").toLowerCase();
         if (!values.includes(discipline)) return false;
+      }
+      if (params.get("audience") === "freshers") {
+        const earlyCareerText = [item.title, item.experience_level, item.qualification, item.metadata?.qualification, item.metadata?.postName, item.metadata?.experience, ...(Array.isArray(item.tags) ? item.tags : [])].filter(Boolean).join(" ").toLowerCase();
+        if (!/(fresher|graduate|trainee|entry.level|management trainee|engineer trainee|graduate engineer|0\s*[-–to]+\s*[12]\s*years?)/.test(earlyCareerText)) return false;
       }
       if (statusFilter && classifyStatus(item) !== statusFilter) return false;
       return true;
@@ -219,6 +226,11 @@
     render(true);
   }
 
+  const initialSector = params.get("sector") || "";
+  const initialDiscipline = params.get("discipline") || "";
+  if (["government", "psu", "private", "government-psu"].includes(initialSector)) form.elements.category.value = initialSector;
+  if (initialDiscipline === "engineering") form.elements.discipline.value = "";
+  else if (initialDiscipline) form.elements.discipline.value = initialDiscipline;
   form.addEventListener("submit", event => { event.preventDefault(); render(true); });
   form.addEventListener("input", event => { if (event.target.matches('input[type="search"]')) render(true); });
   loadMore.addEventListener("click", () => { state.visible += 12; render(false); });
