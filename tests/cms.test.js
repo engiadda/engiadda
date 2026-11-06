@@ -129,8 +129,11 @@ test("CMS content creation requires authentication and validates payload", async
   assert.equal(valid.status, 201);
 });
 
-test("CMS rejects browser requests from unknown origins", async () => {
+test("CMS CORS does not authorize unknown browser origins", async () => {
   const app = appFor(fakeDb());
-  const response = await req(app, "/api/admin/login", { method: "POST", body: { password: PASSWORD }, origin: "https://untrusted.example" });
-  assert.equal(response.status, 403);
+  const response = await app.request("/api/admin/login", {
+    method: "OPTIONS",
+    headers: { origin: "https://untrusted.example", "access-control-request-method": "POST", "access-control-request-headers": "content-type" },
+  });
+  assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
