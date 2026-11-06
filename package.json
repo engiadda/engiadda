@@ -1,0 +1,21 @@
+{
+  "name": "engiadda-neon-backend",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "neon:plan": "neon config plan",
+    "neon:deploy": "neon deploy --env .env.local"
+  },
+  "dependencies": {
+    "hono": "^4.9.8",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@neon/config": "latest",
+    "neon": "latest"
+  }
+}
