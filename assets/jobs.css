@@ -36,3 +36,35 @@
 .career-filter-links a:focus-visible{outline:3px solid rgba(229,57,53,.2);outline-offset:2px;}
 @media(max-width:760px){.career-quick-links{padding:18px 0 0;}.career-quick-links .container{align-items:flex-start;gap:10px;}.career-quick-links .eyebrow{width:100%;}.career-filter-links{gap:8px;}.career-filter-links a{min-height:44px;padding:9px 13px;font-size:14px;}}
 @media(max-width:420px){.career-filter-links a{flex:1 1 calc(50% - 8px);}}
+
+
+/* Readability pass: keep career navigation and supporting text comfortably legible */
+.career-quick-links .eyebrow{font-size:14px;letter-spacing:1.8px;}
+.career-filter-links a{font-size:16px;line-height:1.4;}
+.job-filter label{font-size:13px;letter-spacing:.6px;}
+.job-filter input,.job-filter select{font-size:16px;}
+.job-status-badge,.job-category,.job-verified{font-size:12px;}
+.job-meta span{font-size:14px;line-height:1.4;}
+.job-qualification{font-size:16px;line-height:1.65;}
+.job-dates{font-size:14px;line-height:1.5;}
+.job-source{font-size:14px;line-height:1.5;}
+.update-card .job-qualification{font-size:16px;line-height:1.7;}
+.update-card .job-dates{font-size:14px;line-height:1.55;}
+.update-link{font-size:14px;line-height:1.35;}
+.jobs-status{font-size:15px;line-height:1.6;}
+.jobs-note p{font-size:16px;line-height:1.75;}
+@media(max-width:760px){
+  .career-filter-links a{font-size:16px;min-height:46px;}
+  .job-filter label{font-size:13px;}
+  .job-filter input,.job-filter select{font-size:16px;}
+  .job-meta span{font-size:14px;}
+  .job-qualification,.update-card .job-qualification{font-size:16px;line-height:1.65;}
+  .job-dates,.update-card .job-dates{font-size:14px;}
+  .update-link{font-size:14px;min-height:44px;}
+  .jobs-status{font-size:15px;}
+  .jobs-note p{font-size:16px;}
+}
+@media(max-width:420px){
+  .career-filter-links a{font-size:16px;}
+  .update-link{font-size:14px;}
+}
