@@ -168,7 +168,7 @@
       if (sector === "government-psu" && !["government", "psu"].includes(itemSector)) return false;
       if (sector && sector !== "government-psu" && itemSector !== sector) return false;
       if (discipline) {
-        const values = [item.engineering_discipline, item.subject, ...(Array.isArray(item.disciplines) ? item.disciplines : [])].filter(Boolean).join(" ").toLowerCase();
+        const values = [item.engineering_discipline, item.subject, ...(Array.isArray(item.disciplines) ? item.disciplines : []), searchableText(item)].filter(Boolean).join(" ").toLowerCase();
         if (!values.includes(discipline)) return false;
       }
       if (params.get("audience") === "freshers") {
@@ -226,7 +226,12 @@
     render(true);
   }
 
-  const initialSector = params.get("sector") || "";\n  const initialDiscipline = params.get("discipline") || "";\n  if (["government", "psu", "private", "government-psu"].includes(initialSector)) form.elements.category.value = initialSector;\n  if (initialDiscipline === "engineering") form.elements.discipline.value = "";\n  else if (initialDiscipline) form.elements.discipline.value = initialDiscipline;\n  form.addEventListener("submit", event => { event.preventDefault(); render(true); });
+  const initialSector = params.get("sector") || "";
+  const initialDiscipline = params.get("discipline") || "";
+  if (["government", "psu", "private", "government-psu"].includes(initialSector)) form.elements.category.value = initialSector;
+  if (initialDiscipline === "engineering") form.elements.discipline.value = "";
+  else if (initialDiscipline) form.elements.discipline.value = initialDiscipline;
+  form.addEventListener("submit", event => { event.preventDefault(); render(true); });
   form.addEventListener("input", event => { if (event.target.matches('input[type="search"]')) render(true); });
   loadMore.addEventListener("click", () => { state.visible += 12; render(false); });
   loadFeed();
