@@ -75,8 +75,9 @@
       const category=filter?.value||"",response=await fetch(api+"/api/content"+(category?"?category="+encodeURIComponent(category):""));
       if(!response.ok)throw new Error("Unable to load content right now.");
       const data=await response.json();grid.replaceChildren();
-      if(!data.items?.length){grid.textContent="No published content in this category yet.";return;}
-      for(const item of data.items){
+      const learningItems=(Array.isArray(data.items)?data.items:[]).filter(item=>["article","resource","syllabus","tutorial","career_guidance"].includes(item.content_type));
+      if(!learningItems.length){grid.textContent="No published learning resources in this category yet.";if(status)status.textContent="0 learning resources";return;}
+      for(const item of learningItems){
         const card=document.createElement("article");card.className="cms-public-card";
         const label=document.createElement("span");label.className="eyebrow";label.textContent=item.category+(item.disciplines?.length?" / "+item.disciplines.join(", "):"");
         const title=document.createElement("h3");title.textContent=item.title;
@@ -85,7 +86,7 @@
         const link=document.createElement("a");link.className="text-link";link.href="article.html?slug="+encodeURIComponent(item.slug);link.textContent=item.content_type==="resource"&&item.file_url?"View resource details →":"Read more →";
         card.append(label,title,excerpt,meta,link);grid.append(card);
       }
-      if(status)status.textContent=data.items.length+" published item(s)";
+      if(status)status.textContent=learningItems.length+" learning resource(s)";
     }catch(error){grid.textContent=error.message;}
   }
   filter?.addEventListener("change",loadList);if(grid&&api)loadList();else if(grid)grid.textContent="The EngiAdda content service is not configured.";
