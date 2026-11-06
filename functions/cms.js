@@ -127,7 +127,7 @@ export function createCmsApp() {
     if (!name || !ext || !Number.isSafeInteger(size) || size < 1 || size > MAX_FILE_BYTES) return jsonError(c, "Only PDF, JPEG, PNG or WebP files up to 50 MB are accepted");
     const key = `resources/${new Date().toISOString().slice(0,10)}/${randomBytes(16).toString("hex")}.${ext}`;
     try {
-      const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: type, ContentLength: size, CacheControl: "public, max-age=86400" });
+      const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: type, ContentLength: size, CacheControl: "private, no-store" });
       const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
       return c.json({ uploadUrl, fileKey: key, fileName: name, fileMime: type, fileSizeBytes: size, expiresIn: 600 });
     } catch (error) { console.error("CMS upload signing failed:", error.message); return jsonError(c, "Unable to prepare upload", 503); }
