@@ -4,7 +4,7 @@ import { attachDatabasePool } from "@neon/functions";
 import pg from "pg";
 import { createHmac, randomBytes, timingSafeEqual, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const { Pool } = pg;
@@ -54,7 +54,7 @@ function requireAdmin(c, next) {
   if (!token || !validToken(token)) return jsonError(c, "Admin authentication required", 401);
   return next();
 }
-function publicUrl(key) { return process.env.AWS_ENDPOINT_URL_S3 + "/" + BUCKET + "/" + key.split("/").map(encodeURIComponent).join("/"); }
+async function fileUrl(key) { if (!s3) return null; return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 }); }
 
 export function createCmsApp() {
   const app = new Hono();
@@ -67,7 +67,8 @@ export function createCmsApp() {
       let where = "status = 'published'";
       if (category) { params.push(category); where += " AND category = $1"; }
       const result = await pool.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE ${where} ORDER BY published_at DESC NULLS LAST LIMIT 100`, params);
-      return c.json({ items: result.rows.map(row => ({ ...row, file_url: row.file_key ? publicUrl(row.file_key) : null })) }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
+      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key) : null })));
+      return c.json({ items }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS list failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
   app.get("/api/content/:slug", async (c) => {
@@ -75,7 +76,7 @@ export function createCmsApp() {
       const result = await pool.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE slug=$1 AND status='published' LIMIT 1", [safeText(c.req.param("slug"), 260)]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
       const row = result.rows[0];
-      return c.json({ item: { ...row, file_url: row.file_key ? publicUrl(row.file_key) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
+      return c.json({ item: { ...row, file_url: row.file_key ? await fileUrl(row.file_key) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS detail failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
 
@@ -112,7 +113,8 @@ export function createCmsApp() {
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
       const result = await pool.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
-      return c.json({ items: result.rows.map(row => ({ ...row, file_url: row.file_key ? publicUrl(row.file_key) : null })) });
+      const items = await Promise.all(result.rows.map(async row => ({ ...row, file_url: row.file_key ? await fileUrl(row.file_key) : null })));
+      return c.json({ items });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
   app.post("/api/admin/uploads/presign", async (c) => {
@@ -127,7 +129,7 @@ export function createCmsApp() {
     try {
       const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: type, ContentLength: size, CacheControl: "public, max-age=86400" });
       const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 600 });
-      return c.json({ uploadUrl, fileKey: key, fileName: name, fileMime: type, fileSizeBytes: size, publicUrl: publicUrl(key), expiresIn: 600 });
+      return c.json({ uploadUrl, fileKey: key, fileName: name, fileMime: type, fileSizeBytes: size, expiresIn: 600 });
     } catch (error) { console.error("CMS upload signing failed:", error.message); return jsonError(c, "Unable to prepare upload", 503); }
   });
   app.post("/api/admin/content", async (c) => saveContent(c, null));
@@ -168,7 +170,7 @@ async function saveContent(c, id) {
       : await pool.query(`INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *`, values);
     if (!result.rowCount) return jsonError(c, "Content not found", 404);
     await pool.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
-    return c.json({ item: { ...result.rows[0], file_url: key ? publicUrl(key) : null } }, id ? 200 : 201);
+    return c.json({ item: { ...result.rows[0], file_url: key ? await fileUrl(key) : null } }, id ? 200 : 201);
   } catch (error) {
     if (error.code === "23505") return jsonError(c, "That URL slug is already in use", 409);
     console.error("CMS save failed:", error.message); return jsonError(c, "Unable to save content", 503);
