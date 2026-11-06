@@ -4,31 +4,43 @@
   const grid=document.getElementById("public-content"),filter=document.getElementById("public-category"),status=document.getElementById("public-status"),articleTitle=document.getElementById("article-title");
   const labels={article:"Technical article",recruitment:"Recruitment / vacancy",exam_update:"Exam update",result:"Exam result",syllabus:"Syllabus / exam pattern",resource:"Study resource",tutorial:"Tutorial",career_guidance:"Career guidance"};
   const esc=value=>String(value??"");
-  const dateLabel=value=>{if(!value)return"";const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:value.includes("T")?"short":undefined}).format(d);};
-  function detailCard(title,value){if(value===undefined||value===null||value==="")return null;const card=document.createElement("div");card.className="cms-detail-card";const label=document.createElement("b"),text=document.createElement("span");label.textContent=title;text.textContent=Array.isArray(value)?value.join(", "):String(value);card.append(label,text);return card;}
+  const displayValue=value=>{
+    if(value===undefined||value===null||value==="")return "";
+    if(Array.isArray(value))return value.map(displayValue).filter(Boolean).join(", ");
+    if(typeof value==="object")return Object.entries(value).map(([key,val])=>val===undefined||val===null||val===""?null:key+": "+displayValue(val)).filter(Boolean).join(" · ");
+    return String(value);
+  };
+  const dateLabel=value=>{if(!value)return"";const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:typeof value==="string"&&value.includes("T")?"short":undefined}).format(d);};
+  function detailCard(title,value){const formatted=displayValue(value);if(!formatted)return null;const card=document.createElement("div");card.className="cms-detail-card";const label=document.createElement("b"),text=document.createElement("span");label.textContent=title;text.textContent=formatted;card.append(label,text);return card;}
   function renderRecruitment(item,container){
-    const m=item.metadata||{},cards=[
-      ["Organisation",m.organization],["Advertisement number",m.advertisementNumber],["Post",m.postName],["Total vacancies",m.vacancies],
-      ["Application starts",dateLabel(m.applicationStart)],["Last date to apply",dateLabel(m.applicationEnd)],["Qualification",m.qualification],
-      ["Age limit",m.ageLimit],["Age relaxation",m.ageRelaxation],["Salary / pay scale",m.salary],["Application fee",m.applicationFee],
-      ["Selection process",m.selectionProcess],["Job location",m.jobLocation],["GATE / qualifying exam",m.qualifyingExam],["Branch-wise vacancies",m.branchVacancies]
+    const m=item.metadata||{};
+    const branchVacancies=m.branchVacancies??m.branch_vacancies??(m.vacancies&&typeof m.vacancies==="object"?m.vacancies:null);
+    const vacancyTotal=m.total_vacancies??m.totalVacancies??(typeof m.vacancies==="number"?m.vacancies:null)??(branchVacancies?Object.values(branchVacancies).reduce((sum,value)=>sum+(Number(value)||0),0):null);
+    const applicationStart=m.applicationStart??m.application_start;
+    const applicationEnd=m.applicationEnd??m.application_end;
+    const cards=[
+      ["Organisation",m.organization],["Advertisement number",m.advertisementNumber??m.advertisement_number??m.advertisement],["Post",m.postName??m.post_name],["Total vacancies",vacancyTotal],
+      ["Application starts",dateLabel(applicationStart)],["Last date to apply",dateLabel(applicationEnd)],["Qualification",m.qualification],
+      ["Age limit",m.ageLimit??m.age_limit],["Age relaxation",m.ageRelaxation??m.age_relaxation],["Salary / pay scale",m.salary],
+      ["Application fee",m.applicationFee??m.application_fee],["Selection process",m.selectionProcess??m.selection_process],["Job location",m.jobLocation??m.job_location],
+      ["GATE / qualifying exam",m.qualifyingExam??m.qualifying_exam],["Branch-wise vacancies",branchVacancies]
     ];
-    const now=Date.now(),start=m.applicationStart?new Date(m.applicationStart).getTime():null,end=m.applicationEnd?new Date(m.applicationEnd).getTime():null;
+    const now=Date.now(),start=applicationStart?new Date(applicationStart).getTime():null,end=applicationEnd?new Date(applicationEnd).getTime():null;
     const applicationState=start!==null&&now<start?"Upcoming":end!==null&&now>end?"Closed":start!==null||end!==null?"Open":null;
     if(applicationState)cards.unshift(["Application status",applicationState]);
-    const grid=document.createElement("div");grid.className="cms-recruitment-summary";
-    for(const [label,value] of cards){const card=detailCard(label,value);if(card)grid.append(card);}
-    if(grid.childElementCount)container.append(grid);
+    const summary=document.createElement("div");summary.className="cms-recruitment-summary";
+    for(const [label,value] of cards){const card=detailCard(label,value);if(card)summary.append(card);}
+    if(summary.childElementCount)container.append(summary);
   }
   function renderExam(item,container){
-    const m=item.metadata||{},grid=document.createElement("div");grid.className="cms-recruitment-summary";
-    for(const [label,value] of [["Exam / event date",dateLabel(m.eventDate)],["Exam year",m.examYear],["Authority",m.authority],["Reference number",m.referenceNumber]]){const card=detailCard(label,value);if(card)grid.append(card);}
-    if(grid.childElementCount)container.append(grid);
+    const m=item.metadata||{},summary=document.createElement("div");summary.className="cms-recruitment-summary";
+    for(const [label,value] of [["Exam / event date",dateLabel(m.eventDate)],["Exam year",m.examYear],["Authority",m.authority],["Reference number",m.referenceNumber]]){const card=detailCard(label,value);if(card)summary.append(card);}
+    if(summary.childElementCount)container.append(summary);
     for(const [label,url] of [["Official source",m.sourceUrl],["Official action / result",m.actionUrl]])if(url){try{const u=new URL(url);if(["http:","https:"].includes(u.protocol)){const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small secondary";a.textContent=label;container.append(a);}}catch{}}
   }
   function renderLinks(item,container){
-    const links=item.recruitment_links||{},labels={notification:"Official notification",apply:"Apply online",admitCard:"Admit card",result:"Result",officialWebsite:"Official website"};
-    for(const [key,label] of Object.entries(labels)){const url=links[key];if(!url)continue;try{const u=new URL(url);if(!["http:","https:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small";a.textContent=label;container.append(a);}catch{}}
+    const links=item.recruitment_links||{},linkLabels={notification:"Official notification",apply:"Apply online",admitCard:"Admit card",result:"Result",officialWebsite:"Official website"};
+    for(const [key,label] of Object.entries(linkLabels)){const url=links[key];if(!url)continue;try{const u=new URL(url);if(!["http:","https:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small";a.textContent=label;container.append(a);}catch{}}
     container.hidden=!container.childElementCount;
   }
   function renderAttachments(item){
@@ -61,7 +73,7 @@
   if(articleTitle){
     const slug=new URLSearchParams(location.search).get("slug");
     if(!slug||!api){articleTitle.textContent="Article not found";return;}
-    fetch(api+"/api/content/"+encodeURIComponent(slug)).then(async response=>{const data=await response.json();if(!response.ok||!data.item)throw new Error(data.error||"Article not found");const item=data.item,m=item.metadata||{};
+    fetch(api+"/api/content/"+encodeURIComponent(slug)).then(async response=>{const data=await response.json();if(!response.ok||!data.item)throw new Error(data.error||"Article not found");const item=data.item;
       document.title=(item.seo_title||item.title||"Article")+" | EngiAdda";articleTitle.textContent=item.title;
       document.getElementById("article-meta").textContent=[item.category,...(item.disciplines||[]),item.exam,labels[item.content_type],item.author].filter(Boolean).join(" / ");
       document.getElementById("article-excerpt").textContent=item.excerpt||"";
