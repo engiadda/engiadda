@@ -36,10 +36,11 @@
   };
   const categoryLabel = value => ({ government: "Government", psu: "PSU", private: "Private sector" }[String(value || "").toLowerCase()] || "Engineering");
   const inferSector = item => {
-    const value = [item.category, item.metadata?.organization, item.company, item.title].filter(Boolean).join(" ").toLowerCase();
-    if (/\bprivate\b|private sector/.test(value)) return "private";
-    if (/\bpsu\b|public sector|powergrid|power grid|ntpc|nhpc|ongc|bhel|sail|gail|indian oil|iocl|bpcl|hpcl/.test(value)) return "psu";
-    if (/\bgovernment\b|central govt|state govt|ssc|upsc|railway|rrb|isro|drdo/.test(value)) return "government";
+    const category = String(item.category || "").toLowerCase();
+    const organisation = [item.metadata?.organization, item.company, item.title].filter(Boolean).join(" ").toLowerCase();
+    if (category === "private" || category.includes("private sector") || /\\bprivate\\b/.test(organisation)) return "private";
+    if (category === "government" || category.includes("government jobs") || /central govt|state govt|\\bgovernment\\b|\\bssc\\b|\\bupsc\\b|\\brailway\\b|\\brrb\\b|\\bisro\\b|\\bdrdo\\b/.test(organisation)) return "government";
+    if (category === "psu" || /\\bpublic sector\\b|\\bpsu\\b|powergrid|power grid|\\bntpc\\b|\\bnhpc\\b|\\bongc\\b|\\bbhel\\b|\\bsail\\b|\\bgail\\b|indian oil|\\biocl\\b|\\bbpcl\\b|\\bhpcl\\b/.test(organisation)) return "psu";
     return "";
   };
   const inferType = item => {
