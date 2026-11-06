@@ -13,6 +13,9 @@
       ["Age limit",m.ageLimit],["Age relaxation",m.ageRelaxation],["Salary / pay scale",m.salary],["Application fee",m.applicationFee],
       ["Selection process",m.selectionProcess],["Job location",m.jobLocation],["GATE / qualifying exam",m.qualifyingExam],["Branch-wise vacancies",m.branchVacancies]
     ];
+    const now=Date.now(),start=m.applicationStart?new Date(m.applicationStart).getTime():null,end=m.applicationEnd?new Date(m.applicationEnd).getTime():null;
+    const applicationState=start!==null&&now<start?"Upcoming":end!==null&&now>end?"Closed":start!==null||end!==null?"Open":null;
+    if(applicationState)cards.unshift(["Application status",applicationState]);
     const grid=document.createElement("div");grid.className="cms-recruitment-summary";
     for(const [label,value] of cards){const card=detailCard(label,value);if(card)grid.append(card);}
     if(grid.childElementCount)container.append(grid);
