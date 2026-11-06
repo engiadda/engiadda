@@ -15,12 +15,30 @@ This release adds an administrator-only content manager for technical articles a
 - Supported uploads: PDF, JPEG, PNG, WebP; maximum 50 MB. Resource access uses one-hour signed download links. The S3 client sets `requestChecksumCalculation: WHEN_REQUIRED` so AWS SDK v3 does not sign an empty-body checksum that rejects browser uploads.
 - Content can be saved as draft, published, unpublished (back to draft), or archived. Archiving is reversible by editing and re-saving as a draft.
 
-## One-time setup
+## Verified production state (6 November 2026)
 
-1. Review and apply `migrations/20261106_cms.sql` to the production Neon branch.
-2. Create a production Neon Object Storage bucket named `engiadda-content` with access level `private`.
-3. Create a Postgres role named `engiadda_cms_api` with `read_write` access scoped to database `neondb` and schema `cms`. Obtain its pooled connection string and set it as the CMS Function environment variable `CMS_DATABASE_URL`. Do not use the database-owner connection string.
-4. Deploy `functions/cms.js` as Neon Function slug `cms` (Node.js 24). The function also receives the bucket-injected `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, and `AWS_REGION` variables.
+Read-only inspection of the existing Neon production branch confirms:
+- The `cms` schema and all three tables from this migration are already present.
+- The dedicated `engiadda_cms_api` role exists, has read/write access to the CMS tables, cannot create objects in the CMS schema, and cannot read the Jobs table.
+- The `engiadda-content` Object Storage bucket already exists with **private** access.
+- The production bucket currently contains no objects.
+- The production Neon branch currently has the Jobs Function only; the CMS Function has not yet been deployed.
+- The Neon project is on the Free plan. Neon documents 5 GB of Object Storage per project on Free.
+
+**Do not reapply the migration or recreate the bucket.** The existing Jobs Function, Jobs tables, and Jobs database role must remain untouched.
+
+## Remaining one-time setup
+
+1. Obtain the pooled connection string for role `engiadda_cms_api` and set it as the CMS Function environment variable `CMS_DATABASE_URL`. Do not use the database-owner connection string.
+2. Deploy `functions/cms.js` as Neon Function slug `cms` (Node.js 24). Neon Functions inject the bucket's `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, and `AWS_REGION` variables automatically when the bucket is available on the serving branch.
+3. Generate admin secrets locally. In Bash:
+   ```bash
+   read -s -p "Choose a unique CMS admin password (16+ characters): " CMS_ADMIN_PASSWORD; export CMS_ADMIN_PASSWORD; echo
+   npm run cms:hash-password
+   unset CMS_ADMIN_PASSWORD
+   ```
+   In PowerShell, set `$env:CMS_ADMIN_PASSWORD` from a secure prompt before running `npm run cms:hash-password`; do not put the password in a command literal or source file.
+4. Add the two generated values as Function environment variables: `CMS_ADMIN_PASSWORD_HASH` and `CMS_SESSION_SECRET`. Do not set them in `assets/config.js`, GitHub Pages, or committed files. Keep the password manager copy.
 5. Generate admin secrets locally. In Bash:
    ```bash
    read -s -p "Choose a unique CMS admin password (16+ characters): " CMS_ADMIN_PASSWORD; export CMS_ADMIN_PASSWORD; echo
