@@ -211,3 +211,26 @@ test("CMS resource deletion is blocked when object storage is not configured", a
   assert.equal((await response.json()).error, "File storage is not configured; content was not deleted");
   assert.equal(db.calls.some((call) => call.sql.includes("WITH target AS MATERIALIZED")), false);
 });
+
+ 
+test("CMS recruitment update validates and stores official links", async () => {
+  const db = fakeDb(async (sql, params) => {
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    if (sql.includes("INSERT INTO cms.content_items")) {
+      assert.match(sql, /recruitment_links/);
+      const storedLinks = JSON.parse(params[16]);
+      assert.equal(storedLinks.notification, "https://example.gov.in/notice.pdf");
+      assert.equal(storedLinks.apply, "https://example.gov.in/apply");
+      return { rows: [{ id: "recruitment-id", title: "Recruitment", content_type: "recruitment" }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const missing = await req(app, "/api/admin/content", { method: "POST", token, body: { contentType: "recruitment", title: "Recruitment", category: "Career Guidance", bodyMarkdown: "# Details" } });
+  assert.equal(missing.status, 400);
+  const invalid = await req(app, "/api/admin/content", { method: "POST", token, body: { contentType: "recruitment", title: "Recruitment", category: "Career Guidance", bodyMarkdown: "# Details", recruitmentLinks: { notification: "ftp://example.gov.in/notice.pdf" } } });
+  assert.equal(invalid.status, 400);
+  const valid = await req(app, "/api/admin/content", { method: "POST", token, body: { contentType: "recruitment", title: "Recruitment", category: "Career Guidance", bodyMarkdown: "# Details", recruitmentLinks: { notification: "https://example.gov.in/notice.pdf", apply: "https://example.gov.in/apply" } } });
+  assert.equal(valid.status, 201);
+});
