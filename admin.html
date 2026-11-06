@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>CMS Admin | EngiAdda</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+.cms-wrap{width:min(1100px,calc(100% - 32px));margin:42px auto 80px}.cms-top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:28px}.cms-panel{background:#fff;border:1px solid #e6e8ec;border-radius:16px;padding:26px;box-shadow:0 12px 36px #1720330a}.cms-login{max-width:460px;margin:8vh auto}.cms-form{display:grid;gap:13px}.cms-form label{font-weight:650;font-size:14px}.cms-form input,.cms-form select,.cms-form textarea{width:100%;padding:12px 13px;border:1px solid #d8dce3;border-radius:9px;font:inherit;background:#fff}.cms-form textarea{min-height:220px;resize:vertical}.cms-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.cms-list{display:grid;gap:10px;margin-top:18px}.cms-item{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px;border:1px solid #e6e8ec;border-radius:10px}.cms-item h3{margin:0 0 5px;font-size:16px}.cms-muted{color:#687386;font-size:13px}.cms-actions{display:flex;gap:8px;flex-wrap:wrap}.cms-btn{border:0;border-radius:8px;padding:10px 14px;font-weight:650;cursor:pointer;background:#a91f2c;color:#fff}.cms-btn.secondary{background:#eef0f4;color:#202938}.cms-btn.danger{background:#7b1d25}.cms-status{margin:12px 0;color:#a91f2c;min-height:22px}.cms-hidden{display:none!important}.cms-section{margin-top:22px}.cms-help{font-size:13px;color:#687386;line-height:1.6}.cms-header{border-bottom:1px solid #e7e9ed;padding:18px 0}.cms-header .container{display:flex;justify-content:space-between;align-items:center}.cms-tag{font-size:11px;letter-spacing:.12em;color:#a91f2c;font-weight:800}@media(max-width:680px){.cms-grid{grid-template-columns:1fr}.cms-top,.cms-item{align-items:flex-start;flex-direction:column}.cms-panel{padding:18px}}
+</style>
+</head>
+<body>
+<header class="cms-header"><div class="container"><a class="brand" href="index.html"><span class="mark">EA</span><span>Engi<span>Adda</span></span></a><span class="cms-tag">CONTENT MANAGEMENT</span></div></header>
+<main class="cms-wrap">
+<section id="loginPanel" class="cms-panel cms-login">
+<div class="cms-tag">ADMINISTRATOR ACCESS</div><h1>EngiAdda CMS</h1>
+<p class="cms-help">Sign in with the administrator account. This dashboard is separate from student accounts.</p>
+<form id="loginForm" class="cms-form">
+<label for="email">Administrator email</label><input id="email" type="email" autocomplete="username" required>
+<label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+<button class="cms-btn" type="submit">Sign in</button>
+</form><p id="loginMessage" class="cms-status" role="status"></p>
+</section>
+<section id="dashboard" class="cms-hidden">
+<div class="cms-top"><div><div class="cms-tag">ADMIN WORKSPACE</div><h1>Content dashboard</h1><p id="adminIdentity" class="cms-muted"></p></div><button id="logoutButton" class="cms-btn secondary" type="button">Log out</button></div>
+<div class="cms-panel">
+<div class="cms-top"><div><h2 id="editorHeading">Create content</h2><p class="cms-help">Save drafts first. Publishing makes content available through the public CMS API.</p></div><button id="newButton" class="cms-btn secondary" type="button">New content</button></div>
+<form id="contentForm" class="cms-form">
+<input id="contentId" type="hidden">
+<div class="cms-grid">
+<div><label for="title">Title</label><input id="title" maxlength="240" required></div>
+<div><label for="slug">URL slug</label><input id="slug" maxlength="160" placeholder="generated-from-title"></div>
+<div><label for="contentType">Content type</label><select id="contentType"><option value="article">Article</option><option value="resource">Study resource / PDF listing</option><option value="technology">Technology</option></select></div>
+<div><label for="status">Status</label><select id="status"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div>
+<div><label for="subject">Subject</label><input id="subject" maxlength="120" placeholder="e.g. Electrical Machines"></div>
+<div><label for="topic">Topic</label><input id="topic" maxlength="160" placeholder="e.g. Transformers"></div>
+</div>
+<label for="summary">Summary</label><textarea id="summary" rows="3" maxlength="1000"></textarea>
+<label for="body">Body (Markdown)</label><textarea id="body" placeholder="Write your article or resource description here..."></textarea>
+<div class="cms-grid">
+<div><label for="cover">Cover image URL (optional)</label><input id="cover" type="url" maxlength="2048"></div>
+<div><label for="seoTitle">SEO title (optional)</label><input id="seoTitle" maxlength="240"></div>
+</div>
+<label for="seoDescription">SEO description (optional)</label><textarea id="seoDescription" rows="2" maxlength="320"></textarea>
+<div class="cms-actions"><button class="cms-btn" type="submit">Save content</button><button id="resetButton" class="cms-btn secondary" type="button">Clear form</button></div>
+</form><p id="editorMessage" class="cms-status" role="status"></p>
+</div>
+<div class="cms-panel cms-section"><h2>Content library</h2><div id="contentList" class="cms-list"><p class="cms-muted">Loading…</p></div></div>
+</section>
+</main>
+<script src="assets/cms-config.js"></script><script src="assets/cms-admin.js"></script>
+</body></html>
