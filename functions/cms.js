@@ -9,7 +9,6 @@ const { Pool } = pg;
 const scrypt = promisify(scryptCallback);
 const ALLOWED_ORIGINS = new Set(["https://engiadda.github.io", "http://localhost:5500"]);
 const SESSION_DAYS = 7;
-const COOKIE_NAME = "engiadda_cms_session";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function sha256(value) {
@@ -27,15 +26,6 @@ async function verifyPassword(password, encoded) {
   const derived = Buffer.from(await scrypt(password, salt, 64));
   const stored = Buffer.from(storedHex, "hex");
   return stored.length === derived.length && timingSafeEqual(stored, derived);
-}
-
-function cookie(value, maxAge, secure) {
-  return `${COOKIE_NAME}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
-}
-
-function getCookie(header, name) {
-  const part = (header || "").split(";").map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
-  return part ? decodeURIComponent(part.slice(name.length + 1)) : "";
 }
 
 function safeSlug(value) {
@@ -68,11 +58,10 @@ function validContent(input) {
 export function createCmsApp({ db, env = process.env, clock = () => new Date() } = {}) {
   if (!db || typeof db.query !== "function") throw new Error("CMS database adapter is required");
   const app = new Hono();
-  const secureCookie = env.NODE_ENV === "production";
 
   app.use("/api/cms/*", cors({
     origin: (origin) => ALLOWED_ORIGINS.has(origin) ? origin : "",
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
     maxAge: 600,
@@ -84,7 +73,8 @@ export function createCmsApp({ db, env = process.env, clock = () => new Date() }
   };
 
   async function currentAdmin(c) {
-    const token = getCookie(c.req.header("cookie"), COOKIE_NAME);
+    const authorization = c.req.header("authorization") || "";
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
     if (!/^[a-f0-9]{64}$/i.test(token)) return null;
     const result = await db.query(
       "SELECT a.id, a.email FROM cms_sessions s JOIN cms_admins a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.expires_at > $2 AND a.is_active=TRUE LIMIT 1",
@@ -146,8 +136,7 @@ export function createCmsApp({ db, env = process.env, clock = () => new Date() }
       const expiresAt = new Date(clock().getTime() + SESSION_DAYS * 86_400_000);
       await db.query("INSERT INTO cms_sessions(admin_id,token_hash,expires_at) VALUES($1,$2,$3)", [admin.id, sha256(token), expiresAt]);
       await db.query("UPDATE cms_admins SET last_login_at=$2 WHERE id=$1", [admin.id, clock()]);
-      c.header("Set-Cookie", cookie(token, SESSION_DAYS * 86_400, secureCookie));
-      return c.json({ status: "ok", admin: { id: admin.id, email: admin.email } });
+      return c.json({ status: "ok", session_token: token, expires_in: SESSION_DAYS * 86_400, admin: { id: admin.id, email: admin.email } });
     } catch (error) {
       console.error("CMS login failed:", error.message);
       return c.json({ error: "Login service unavailable" }, 503);
@@ -158,12 +147,12 @@ export function createCmsApp({ db, env = process.env, clock = () => new Date() }
 
   app.post("/api/cms/auth/logout", async (c) => {
     if (!requireOrigin(c)) return c.json({ error: "Untrusted origin" }, 403);
-    const token = getCookie(c.req.header("cookie"), COOKIE_NAME);
+    const authorization = c.req.header("authorization") || "";
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
     if (/^[a-f0-9]{64}$/i.test(token)) {
       try { await db.query("DELETE FROM cms_sessions WHERE token_hash=$1", [sha256(token)]); }
       catch (error) { console.error("CMS logout failed:", error.message); return c.json({ error: "Logout failed" }, 503); }
     }
-    c.header("Set-Cookie", cookie("", 0, secureCookie));
     return c.json({ status: "ok" });
   });
 
