@@ -1,0 +1,44 @@
+name: Package CMS Neon Function
+
+on:
+  push:
+    branches: [feature/admin-cms]
+    paths:
+      - "functions/cms.js"
+      - "package.json"
+      - ".github/workflows/package-cms-function.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build deployment bundle
+        run: |
+          mkdir -p dist/cms
+          cp functions/cms.js dist/cms/index.js
+          cat > dist/cms/package.json <<'JSON'
+          {
+            "type": "module",
+            "dependencies": {
+              "hono": "^4.9.8",
+              "pg": "^8.13.1",
+              "@neon/functions": "latest",
+              "@aws-sdk/client-s3": "^3.850.0",
+              "@aws-sdk/s3-request-presigner": "^3.850.0"
+            }
+          }
+          JSON
+          cd dist/cms
+          zip -r ../../cms-function.zip index.js package.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cms-function-bundle
+          path: cms-function.zip
+          retention-days: 3
