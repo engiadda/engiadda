@@ -105,6 +105,7 @@ test("public feed filters official and unexpired jobs", async () => {
     assert.equal(response.status, 200);
     assert.match(receivedQuery, /official = TRUE/);
     assert.match(receivedQuery, /deadline >= CURRENT_DATE/);
+    assert.match(receivedQuery, /published_at::date >= CURRENT_DATE - INTERVAL '60 days'/);
     assert.deepEqual(receivedParams, ["%engineer%", "private", "%electrical%", 10, 0]);
     assert.equal((await response.json()).count, 1);
   } finally {
