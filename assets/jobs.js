@@ -113,7 +113,7 @@
       state.offset += jobs.length;
       state.hasMore = jobs.length === state.limit;
       status.textContent = jobs.length
-        ? `Showing ${state.offset} opportunity${state.offset === 1 ? "" : "ies"} from the verified job feed.`
+        ? `Showing ${state.offset} ${state.offset === 1 ? "opportunity" : "opportunities"} from the verified job feed.`
         : append ? "No more opportunities to show." : "No matching active opportunities found.";
       if (count) count.textContent = String(state.offset);
       loadMore.hidden = !state.hasMore;
