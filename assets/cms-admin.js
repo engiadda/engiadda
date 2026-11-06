@@ -41,7 +41,7 @@
     sessionStorage.removeItem(tokenKey); $("dashboard").classList.add("cms-hidden"); $("loginPanel").classList.remove("cms-hidden");
   });
   function resetForm() {
-    $("contentForm").reset(); $("contentId").value = ""; $("editorHeading").textContent = "Create content"; message("editorMessage", "");
+    $("contentForm").reset(); $("contentId").value = ""; $("slug").dataset.edited = ""; $("editorHeading").textContent = "Create content"; message("editorMessage", "");
   }
   $("resetButton").addEventListener("click", resetForm);
   $("newButton").addEventListener("click", resetForm);
