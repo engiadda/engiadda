@@ -137,6 +137,15 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       return c.json({ uploadUrl, fileKey: key, fileName: name, fileMime: type, fileSizeBytes: size, expiresIn: 600 });
     } catch (error) { console.error("CMS upload signing failed:", error.message); return jsonError(c, "Unable to prepare upload", 503); }
   });
+  app.get("/api/admin/content/:id", async (c) => {
+    const id = safeText(c.req.param("id"), 80);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return jsonError(c, "Invalid content ID", 400);
+    try {
+      const result = await db.query("SELECT * FROM cms.content_items WHERE id=$1", [id]);
+      if (!result.rowCount) return jsonError(c, "Content not found", 404);
+      return c.json({ item: await withFileUrls(result.rows[0], storage, true) });
+    } catch (error) { console.error("CMS admin content detail failed:", error.message); return jsonError(c, "Unable to load content", 503); }
+  });
   app.post("/api/admin/content", async (c) => saveContent(c, null, { db, storage }));
   app.patch("/api/admin/content/:id", async (c) => saveContent(c, c.req.param("id"), { db, storage }));
   app.delete("/api/admin/content/:id", async (c) => {
@@ -257,7 +266,7 @@ async function saveContent(c, id, { db, storage }) {
       : await db.query("INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,recruitment_links,disciplines,author,featured_image_url,scheduled_at,metadata,attachments,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22::jsonb,$23::jsonb,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *", values);
     if (!result.rowCount) return jsonError(c, "Content not found", 404);
     await db.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id?"updated":"created",result.rows[0].id,JSON.stringify({status,contentType:type})]);
-    return c.json({ item: await withFileUrls(result.rows[0],storage) },id?200:201);
+    return c.json({ item: await withFileUrls(result.rows[0],storage,true) },id?200:201);
   } catch (error) {
     if (error.code==="23505") return jsonError(c,"That URL slug is already in use",409);
     console.error("CMS save failed:",error.message); return jsonError(c,"Unable to save content",503);
