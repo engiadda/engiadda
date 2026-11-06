@@ -1,0 +1,39 @@
+name: EngiAdda Neon Jobs API Tests
+
+on:
+  pull_request:
+    paths:
+      - "functions/**"
+      - "database/migrations/**"
+      - "tests/**"
+      - "neon.ts"
+      - "package.json"
+      - ".github/workflows/neon-api-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "functions/**"
+      - "database/migrations/**"
+      - "tests/**"
+      - "neon.ts"
+      - "package.json"
+      - ".github/workflows/neon-api-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Run API tests
+        run: npm test
