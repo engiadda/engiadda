@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { app, createApp, pool, normalizeJob, isTrustedPublisherClaims } from "../functions/jobs.js";
+import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
+import { app, createApp, pool, normalizeJob, isTrustedPublisherClaims, verifyPublisherToken } from "../functions/jobs.js";
 
 const validJob = {
   id: "engiadda-test-001",
@@ -40,6 +41,32 @@ test("job normalization rejects HTTP URLs and embedded URL credentials", () => {
 
 test("job normalization rejects expired deadlines", () => {
   assert.match(normalizeJob({ ...validJob, deadline: "2000-01-01" }).error, /Expired/);
+});
+
+
+test("publisher OIDC verifier validates JWT signature, issuer, audience and claims", async () => {
+  const { privateKey, publicKey } = await generateKeyPair("RS256");
+  const jwk = await exportJWK(publicKey);
+  jwk.kid = "engiadda-test-key";
+  jwk.alg = "RS256";
+  jwk.use = "sig";
+  const localJwks = createLocalJWKSet({ keys: [jwk] });
+  const claims = {
+    repository: "engiadda/engiadda-job-alert-agent",
+    ref: "refs/heads/main",
+    workflow_ref: "engiadda/engiadda-job-alert-agent/.github/workflows/job-alert-agent.yml@refs/heads/main",
+    event_name: "schedule",
+  };
+  const token = await new SignJWT(claims)
+    .setProtectedHeader({ alg: "RS256", kid: "engiadda-test-key" })
+    .setIssuer("https://token.actions.githubusercontent.com")
+    .setAudience("engiadda-jobs-api")
+    .setIssuedAt()
+    .setExpirationTime("5m")
+    .sign(privateKey);
+
+  assert.equal(await verifyPublisherToken(token, localJwks), true);
+  assert.equal(await verifyPublisherToken(`${token}tampered`, localJwks), false);
 });
 
 test("ingestion rejects missing or invalid GitHub OIDC bearer tokens", async () => {
