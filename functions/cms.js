@@ -17,7 +17,8 @@ const MIME_EXT = new Map([
   ["image/png", "png"],
   ["image/webp", "webp"],
 ]);
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4, idleTimeoutMillis: 30000, connectionTimeoutMillis: 5000 });
+if (!process.env.CMS_DATABASE_URL) throw new Error("CMS_DATABASE_URL is required; use a database role scoped to the cms schema");
+const pool = new Pool({ connectionString: process.env.CMS_DATABASE_URL, max: 4, idleTimeoutMillis: 30000, connectionTimeoutMillis: 5000 });
 pool.on("error", (error) => console.error("CMS database pool error:", error.message));
 attachDatabasePool(pool);
 
@@ -65,13 +66,13 @@ export function createCmsApp() {
       const params = [];
       let where = "status = 'published'";
       if (category) { params.push(category); where += " AND category = $1"; }
-      const result = await pool.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM content_items WHERE ${where} ORDER BY published_at DESC NULLS LAST LIMIT 100`, params);
+      const result = await pool.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE ${where} ORDER BY published_at DESC NULLS LAST LIMIT 100`, params);
       return c.json({ items: result.rows.map(row => ({ ...row, file_url: row.file_key ? publicUrl(row.file_key) : null })) }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS list failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
   app.get("/api/content/:slug", async (c) => {
     try {
-      const result = await pool.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM content_items WHERE slug=$1 AND status='published' LIMIT 1", [safeText(c.req.param("slug"), 260)]);
+      const result = await pool.query("SELECT id, content_type, title, slug, excerpt, body_markdown, category, subject, exam, tags, file_key, file_name, file_mime, published_at FROM cms.content_items WHERE slug=$1 AND status='published' LIMIT 1", [safeText(c.req.param("slug"), 260)]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
       const row = result.rows[0];
       return c.json({ item: { ...row, file_url: row.file_key ? publicUrl(row.file_key) : null } }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
@@ -85,16 +86,16 @@ export function createCmsApp() {
     if (password.length < 1 || password.length > 256) return jsonError(c, "Invalid credentials", 401);
     try {
       const key = "admin";
-      const state = await pool.query("SELECT attempts, locked_until FROM cms_login_attempts WHERE username=$1", [key]);
+      const state = await pool.query("SELECT attempts, locked_until FROM cms.cms_login_attempts WHERE username=$1", [key]);
       if (state.rowCount && state.rows[0].locked_until && new Date(state.rows[0].locked_until) > new Date()) return jsonError(c, "Too many attempts. Try again later.", 429);
       if (!(await verifyPassword(password))) {
-        await pool.query(`INSERT INTO cms_login_attempts(username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
+        await pool.query(`INSERT INTO cms.cms_login_attempts(username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
           ON CONFLICT(username) DO UPDATE SET attempts=CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN 1 ELSE cms_login_attempts.attempts+1 END,
           window_started=CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN now() ELSE cms_login_attempts.window_started END,
           locked_until=CASE WHEN (CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN 1 ELSE cms_login_attempts.attempts+1 END) >= 8 THEN now()+interval '15 minutes' ELSE NULL END`, [key]);
         return jsonError(c, "Invalid credentials", 401);
       }
-      await pool.query("DELETE FROM cms_login_attempts WHERE username=$1", [key]);
+      await pool.query("DELETE FROM cms.cms_login_attempts WHERE username=$1", [key]);
       return c.json({ token: issueToken(), expires_in: 7200 });
     } catch (error) { console.error("CMS login failed:", error.message); return jsonError(c, "Login service unavailable", 503); }
   });
@@ -110,7 +111,7 @@ export function createCmsApp() {
       const params = [];
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
-      const result = await pool.query(`SELECT * FROM content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
+      const result = await pool.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
       return c.json({ items: result.rows.map(row => ({ ...row, file_url: row.file_key ? publicUrl(row.file_key) : null })) });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
@@ -136,9 +137,9 @@ export function createCmsApp() {
     const status = safeText(body.status, 20);
     if (!["draft", "published", "archived"].includes(status)) return jsonError(c, "Invalid status");
     try {
-      const result = await pool.query("UPDATE content_items SET status=$2, published_at=CASE WHEN $2='published' THEN COALESCE(published_at,now()) ELSE published_at END, updated_at=now() WHERE id=$1 RETURNING id,status", [c.req.param("id"), status]);
+      const result = await pool.query("UPDATE cms.content_items SET status=$2, published_at=CASE WHEN $2='published' THEN COALESCE(published_at,now()) ELSE published_at END, updated_at=now() WHERE id=$1 RETURNING id,status", [c.req.param("id"), status]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
-      await pool.query("INSERT INTO cms_audit_log(action,content_id) VALUES ($1,$2)", [status, c.req.param("id")]);
+      await pool.query("INSERT INTO cms.cms_audit_log(action,content_id) VALUES ($1,$2)", [status, c.req.param("id")]);
       return c.json({ item: result.rows[0] });
     } catch (error) { console.error("CMS status update failed:", error.message); return jsonError(c, "Unable to update content", 503); }
   });
@@ -163,10 +164,10 @@ async function saveContent(c, id) {
   const values = [type,title,slug,safeText(body.excerpt,600),markdown,category,safeText(body.subject,120),safeText(body.exam,120),Array.isArray(body.tags)?body.tags.filter(x=>typeof x==="string").slice(0,20).map(x=>safeText(x,50)):[],status,key,safeText(body.fileName,255)||null,safeText(body.fileMime,120)||null,body.fileSizeBytes !== null && body.fileSizeBytes !== undefined && body.fileSizeBytes !== "" && Number.isSafeInteger(Number(body.fileSizeBytes)) ? Number(body.fileSizeBytes) : null,safeText(body.seoTitle,70)||null,safeText(body.seoDescription,180)||null];
   try {
     const result = id
-      ? await pool.query(`UPDATE content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$17 RETURNING *`, [...values, id])
-      : await pool.query(`INSERT INTO content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *`, values);
+      ? await pool.query(`UPDATE cms.content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$17 RETURNING *`, [...values, id])
+      : await pool.query(`INSERT INTO cms.content_items(content_type,title,slug,excerpt,body_markdown,category,subject,exam,tags,status,file_key,file_name,file_mime,file_size_bytes,seo_title,seo_description,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,CASE WHEN $10='published' THEN now() ELSE NULL END) RETURNING *`, values);
     if (!result.rowCount) return jsonError(c, "Content not found", 404);
-    await pool.query("INSERT INTO cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
+    await pool.query("INSERT INTO cms.cms_audit_log(action,content_id,details) VALUES ($1,$2,$3)", [id ? "updated" : "created", result.rows[0].id, JSON.stringify({ status })]);
     return c.json({ item: { ...result.rows[0], file_url: key ? publicUrl(key) : null } }, id ? 200 : 201);
   } catch (error) {
     if (error.code === "23505") return jsonError(c, "That URL slug is already in use", 409);
