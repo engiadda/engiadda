@@ -12,6 +12,23 @@
   };
   const dateLabel=value=>{if(!value)return"";const d=new Date(value);return Number.isNaN(d.getTime())?esc(value):new Intl.DateTimeFormat("en-IN",{dateStyle:"medium",timeStyle:typeof value==="string"&&value.includes("T")?"short":undefined}).format(d);};
   function detailCard(title,value){const formatted=displayValue(value);if(!formatted)return null;const card=document.createElement("div");card.className="cms-detail-card";const label=document.createElement("b"),text=document.createElement("span");label.textContent=title;text.textContent=formatted;card.append(label,text);return card;}
+  function setArticleNavigation(item){
+    const back=document.getElementById("article-back-link"),section=document.getElementById("article-nav-link"),main=document.getElementById("article-main");
+    const type=item.content_type||"article";
+    const config={
+      recruitment:{label:"Recruitment & Careers",href:"careers.html",nav:"Recruitment"},
+      exam_update:{label:"Exam Updates",href:"content.html",nav:"Exam Updates"},
+      result:{label:"Exam Results",href:"content.html",nav:"Exam Results"},
+      syllabus:{label:"Syllabus & Exam Pattern",href:"content.html",nav:"Exam Resources"},
+      resource:{label:"Study Resources",href:"content.html",nav:"Study Resources"},
+      tutorial:{label:"Tutorials",href:"content.html",nav:"Tutorials"},
+      career_guidance:{label:"Career Guidance",href:"content.html",nav:"Career Guidance"},
+      article:{label:"Engineering Articles",href:"content.html",nav:"Engineering Articles"}
+    }[type]||{label:"Engineering Articles",href:"content.html",nav:"Engineering Articles"};
+    if(back){back.href=config.href;back.textContent="← "+config.label;}
+    if(section){section.href=config.href;section.textContent=config.nav;}
+    if(main)main.dataset.contentType=type;
+  }
   function renderRecruitment(item,container){
     const m=item.metadata||{};
     const branchVacancies=m.branchVacancies??m.branch_vacancies??(m.vacancies&&typeof m.vacancies==="object"?m.vacancies:null);
@@ -39,16 +56,18 @@
     for(const [label,url] of [["Official source",m.sourceUrl],["Official action / result",m.actionUrl]])if(url){try{const u=new URL(url);if(["http:","https:"].includes(u.protocol)){const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small secondary";a.textContent=label;container.append(a);}}catch{}}
   }
   function renderLinks(item,container){
-    const links=item.recruitment_links||{},linkLabels={notification:"Official notification",apply:"Apply online",admitCard:"Admit card",result:"Result",officialWebsite:"Official website"};
-    for(const [key,label] of Object.entries(linkLabels)){const url=links[key];if(!url)continue;try{const u=new URL(url);if(!["http:","https:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small";a.textContent=label;container.append(a);}catch{}}
-    container.hidden=!container.childElementCount;
+    const links=item.recruitment_links||{},linkLabels={apply:"Apply online",notification:"Official notification",admitCard:"Admit card",result:"Result",officialWebsite:"Official website"};
+    const heading=document.createElement("p");heading.className="cms-action-heading";heading.textContent="Official links";let count=0;
+    for(const [key,label] of Object.entries(linkLabels)){const url=links[key];if(!url)continue;try{const u=new URL(url);if(!["http:","https:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.className="btn small "+(key==="apply"?"cms-action-primary":"cms-action-secondary");a.textContent=label;container.append(a);count++;}catch{}}
+    if(count){container.prepend(heading);container.hidden=false;}else container.hidden=true;
   }
   function renderAttachments(item){
     const container=document.getElementById("content-attachments");if(!container)return;
-    const files=Array.isArray(item.attachments)?item.attachments:[];
+    const files=Array.isArray(item.attachments)?item.attachments.slice():[];
     if(item.file_url&&!files.some(x=>x.fileName===item.file_name))files.unshift({fileName:item.file_name||"Download resource",url:item.file_url});
-    for(const file of files){if(!file.url)continue;const a=document.createElement("a");a.href=file.url;a.target="_blank";a.rel="noopener noreferrer";a.textContent=(file.label||file.fileName||"Download attachment")+" · Open / download";container.append(a);}
-    container.hidden=!container.childElementCount;
+    let count=0;
+    for(const file of files){if(!file.url)continue;try{const u=new URL(file.url);if(!["http:","https:"].includes(u.protocol))continue;const a=document.createElement("a");a.href=u.href;a.target="_blank";a.rel="noopener noreferrer";a.textContent=(file.label||file.fileName||"Download attachment")+" · Open / download";container.append(a);count++;}catch{}}
+    if(count){const heading=document.createElement("h2");heading.textContent="Official documents & attachments";container.prepend(heading);container.hidden=false;}else container.hidden=true;
   }
   async function loadList(){
     if(!grid)return;grid.textContent="Loading EngiAdda content…";
@@ -74,14 +93,14 @@
     const slug=new URLSearchParams(location.search).get("slug");
     if(!slug||!api){articleTitle.textContent="Article not found";return;}
     fetch(api+"/api/content/"+encodeURIComponent(slug)).then(async response=>{const data=await response.json();if(!response.ok||!data.item)throw new Error(data.error||"Article not found");const item=data.item;
-      document.title=(item.seo_title||item.title||"Article")+" | EngiAdda";articleTitle.textContent=item.title;
+      document.title=(item.seo_title||item.title||"Article")+" | EngiAdda";articleTitle.textContent=item.title;setArticleNavigation(item);
       document.getElementById("article-meta").textContent=[item.category,...(item.disciplines||[]),item.exam,labels[item.content_type],item.author].filter(Boolean).join(" / ");
       document.getElementById("article-excerpt").textContent=item.excerpt||"";
       if(item.featured_image_url){try{const u=new URL(item.featured_image_url);if(["http:","https:"].includes(u.protocol)){const img=document.createElement("img");img.className="cms-featured-image";img.src=u.href;img.alt=item.title;document.getElementById("article-excerpt").after(img);}}catch{}}
+      const linkBox=document.getElementById("recruitment-links");renderLinks(item,linkBox);
       const details=document.getElementById("content-details");
       if(item.content_type==="recruitment")renderRecruitment(item,details);
       if(["exam_update","result","syllabus"].includes(item.content_type))renderExam(item,details);
-      const linkBox=document.getElementById("recruitment-links");renderLinks(item,linkBox);
       renderAttachments(item);
       if(item.content_type==="resource"&&item.file_url){const a=document.createElement("a");a.href=item.file_url;a.target="_blank";a.rel="noopener noreferrer";a.className="btn";a.textContent="Open / download resource";document.getElementById("resource-download").append(a);}
       if(item.content_type!=="resource"){const body=document.getElementById("article-body");if(window.marked&&window.DOMPurify)body.innerHTML=DOMPurify.sanitize(marked.parse(item.body_markdown||""));else body.textContent=item.body_markdown||"";}
