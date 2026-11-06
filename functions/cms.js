@@ -145,9 +145,9 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
     try {
       // Do not remove a resource record when object storage is unavailable:
       // doing so would orphan its private file with no way to clean it up.
-      const existing = await db.query("SELECT id, file_key FROM cms.content_items WHERE id=$1", [id]);
+      const existing = await db.query("SELECT id, file_key, attachments FROM cms.content_items WHERE id=$1", [id]);
       if (!existing.rowCount) return jsonError(c, "Content not found", 404);
-      if (existing.rows[0].file_key && !storage) return jsonError(c, "File storage is not configured; content was not deleted", 503);
+      if ((existing.rows[0].file_key || (Array.isArray(existing.rows[0].attachments) && existing.rows[0].attachments.length)) && !storage) return jsonError(c, "File storage is not configured; content was not deleted", 503);
       // Keep a durable audit snapshot, then remove the row in one SQL statement.
       // The audit table intentionally has no FK to content_items, so history survives deletion.
       const result = await db.query(`
@@ -167,23 +167,22 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
           DELETE FROM cms.content_items AS item
           USING target, audit
           WHERE item.id=target.id
-          RETURNING item.id, item.title, item.slug, item.content_type, item.file_key
+          RETURNING item.id, item.title, item.slug, item.content_type, item.file_key, item.attachments
         )
         SELECT * FROM deleted
       `, [id]);
       if (!result.rowCount) return jsonError(c, "Content not found", 404);
       const item = result.rows[0];
-      if (item.file_key) {
-        if (!storage) {
-          console.error("CMS content deleted but storage cleanup is unavailable:", item.file_key);
-          return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
-        }
+      const fileKeys = [...new Set([item.file_key, ...(Array.isArray(item.attachments) ? item.attachments.map(file => file?.fileKey) : [])].filter(key => typeof key === "string" && key.startsWith("resources/")))];
+      if (fileKeys.length && !storage) {
+        console.error("CMS content deleted but storage cleanup is unavailable:", fileKeys);
+        return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
+      }
+      for (const fileKey of fileKeys) {
         try {
-          await storage.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: item.file_key }));
+          await storage.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: fileKey }));
         } catch (storageError) {
-          // The bucket is private and no content row remains to issue a download URL.
-          // Preserve the successful content deletion and report the orphaned object for cleanup.
-          console.error("CMS storage cleanup pending:", storageError.message);
+          console.error("CMS storage cleanup pending:", fileKey, storageError.message);
           return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
         }
       }
