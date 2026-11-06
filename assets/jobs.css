@@ -24,3 +24,15 @@
 @media(max-width:1050px){.job-filters{grid-template-columns:repeat(2,minmax(0,1fr));}.job-filters .job-filter:first-child{grid-column:1/-1;}.job-filters button{width:100%;}}
 @media(max-width:760px){.jobs-toolbar{padding:17px;margin:22px 0 18px;border-radius:8px;}.job-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}.job-filters .job-filter:first-child{grid-column:1/-1;}.job-filter input,.job-filter select{height:50px;font-size:16px;}.jobs-grid{grid-template-columns:1fr;gap:13px;}.update-card{padding:20px;}.update-card .job-title{font-size:21px;}.job-status-badge,.job-category,.job-verified{font-size:11px;}.update-link{min-height:42px;font-size:13px;}}
 @media(max-width:480px){.job-filters{grid-template-columns:1fr;}.job-filters .job-filter:first-child{grid-column:auto;}.jobs-toolbar{padding:14px;}.update-card{padding:18px;}.update-links{display:grid;grid-template-columns:1fr 1fr;}.update-link{justify-content:center;text-align:center;padding:8px 7px;font-size:12px;}.jobs-note{padding:20px;}.jobs-note h3{font-size:20px;}.jobs-note p{font-size:14px;}}
+
+
+/* Compact career shortcuts: quick filters, not promotional cards */
+.career-quick-links{padding:22px 0 0;background:#fff;}
+.career-quick-links .container{display:flex;align-items:center;flex-wrap:wrap;gap:12px 22px;}
+.career-quick-links .eyebrow{margin:0;font-size:12px;white-space:nowrap;}
+.career-filter-links{display:flex;align-items:center;flex-wrap:wrap;gap:9px;}
+.career-filter-links a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 15px;border:1px solid #deded9;border-radius:999px;background:#fff;color:#383a3e;font-size:14px;font-weight:700;line-height:1.3;transition:border-color .15s,color .15s,background .15s;}
+.career-filter-links a:hover,.career-filter-links a:focus-visible{border-color:var(--accent);color:var(--accent);background:#fffafa;}
+.career-filter-links a:focus-visible{outline:3px solid rgba(229,57,53,.2);outline-offset:2px;}
+@media(max-width:760px){.career-quick-links{padding:18px 0 0;}.career-quick-links .container{align-items:flex-start;gap:10px;}.career-quick-links .eyebrow{width:100%;}.career-filter-links{gap:8px;}.career-filter-links a{min-height:44px;padding:9px 13px;font-size:14px;}}
+@media(max-width:420px){.career-filter-links a{flex:1 1 calc(50% - 8px);}}
