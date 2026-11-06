@@ -102,7 +102,7 @@ test("CMS public list only selects published content whose publish time has arri
 });
 
 test("CMS public detail endpoint excludes scheduled content and hides object keys", async () => {
-  const db = fakeDb(async () => ({ rows: [{ id: "1", title: "Published", file_key: "resources/private.pdf" }], rowCount: 1 }));
+  const db = fakeDb(async () => ({ rows: [{ id: "1", title: "Published", file_key: "resources/private.pdf", attachments: [{ fileKey: "resources/private.pdf", fileName: "private.pdf", fileMime: "application/pdf", fileSizeBytes: 100 }] }], rowCount: 1 }));
   const app = appFor(db);
   const response = await app.request("/api/content/example");
   assert.equal(response.status, 200);
@@ -286,4 +286,26 @@ test("CMS rejects attachments with invalid storage keys or unsupported MIME type
     }
   });
   assert.equal(response.status, 400);
+});
+
+
+test("CMS deletion removes every attached object from private storage", async () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const attachments = [
+    { fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 100 },
+    { fileKey: "resources/2026/syllabus.pdf", fileName: "syllabus.pdf", fileMime: "application/pdf", fileSizeBytes: 200 }
+  ];
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("SELECT id, file_key, attachments FROM cms.content_items")) return { rows: [{ id, file_key: null, attachments }], rowCount: 1 };
+    if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [{ id, title: "Multi-file resource", slug: "multi-file", content_type: "resource", file_key: null, attachments }], rowCount: 1 };
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const deleted = [];
+  const storage = { send: async command => { deleted.push(command.input.Key); return {}; } };
+  const app = appFor(db, { hash: await passwordHash(), storage });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/" + id, { method: "DELETE", token });
+  assert.equal(response.status, 200);
+  assert.deepEqual(deleted, ["resources/2026/notice.pdf", "resources/2026/syllabus.pdf"]);
 });
