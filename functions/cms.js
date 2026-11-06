@@ -90,10 +90,10 @@ export function createCmsApp() {
       const state = await pool.query("SELECT attempts, locked_until FROM cms.cms_login_attempts WHERE username=$1", [key]);
       if (state.rowCount && state.rows[0].locked_until && new Date(state.rows[0].locked_until) > new Date()) return jsonError(c, "Too many attempts. Try again later.", 429);
       if (!(await verifyPassword(password))) {
-        await pool.query(`INSERT INTO cms.cms_login_attempts(username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
-          ON CONFLICT(username) DO UPDATE SET attempts=CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN 1 ELSE cms_login_attempts.attempts+1 END,
-          window_started=CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN now() ELSE cms_login_attempts.window_started END,
-          locked_until=CASE WHEN (CASE WHEN cms_login_attempts.window_started < now()-interval '15 minutes' THEN 1 ELSE cms_login_attempts.attempts+1 END) >= 8 THEN now()+interval '15 minutes' ELSE NULL END`, [key]);
+        await pool.query(`INSERT INTO cms.cms_login_attempts AS attempts_row (username, attempts, window_started, locked_until) VALUES ($1,1,now(),NULL)
+          ON CONFLICT(username) DO UPDATE SET attempts=CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN 1 ELSE attempts_row.attempts+1 END,
+          window_started=CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN now() ELSE attempts_row.window_started END,
+          locked_until=CASE WHEN (CASE WHEN attempts_row.window_started < now()-interval '15 minutes' THEN 1 ELSE attempts_row.attempts+1 END) >= 8 THEN now()+interval '15 minutes' ELSE NULL END`, [key]);
         return jsonError(c, "Invalid credentials", 401);
       }
       await pool.query("DELETE FROM cms.cms_login_attempts WHERE username=$1", [key]);
