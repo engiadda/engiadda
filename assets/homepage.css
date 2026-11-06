@@ -221,3 +221,26 @@
 @media(hover:hover){
  .home-pillar:hover,.home-story:hover{transform:translateY(-3px);}
 }
+
+
+/* Readability pass: strengthen supporting typography without competing with display headings */
+.home-kicker,
+.home-overline{font-size:13px;letter-spacing:1.65px;line-height:1.55}
+.home-hero-foot{font-size:14px;line-height:1.55;letter-spacing:.2px;color:#666a70}
+.home-visual-top,
+.home-visual-bottom{font-size:11px;letter-spacing:1.35px}
+.systems-art text{font-size:12px}
+.home-hero-bottomline{font-size:11px;letter-spacing:1.25px}
+.pillar-number{font-size:12px;letter-spacing:1.2px}
+.home-footer-bottom{font-size:11px;letter-spacing:.9px}
+
+@media(max-width:760px){
+ .home-kicker{font-size:11px;letter-spacing:.8px;line-height:1.5}
+ .home-overline{font-size:12px;letter-spacing:1.25px}
+ .home-hero-foot{font-size:12px;line-height:1.55}
+ .home-visual-top,.home-visual-bottom{font-size:10px;letter-spacing:.8px}
+ .systems-art text{font-size:12px}
+ .home-hero-bottomline{font-size:9px;letter-spacing:.55px}
+ .pillar-number{font-size:12px}
+ .home-footer-bottom{font-size:10px;letter-spacing:.5px}
+}
