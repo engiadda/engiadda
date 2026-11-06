@@ -60,7 +60,21 @@
           try { await request("/api/admin/content/" + encodeURIComponent(item.id) + "/status", { method:"PATCH", headers:headers(), body:JSON.stringify({ status:nextStatus }) }); await loadItems(); }
           catch (error) { message("editor-message", error.message, true); }
         });
-        actions.append(edit, change); card.append(details, actions); list.append(card);
+        const remove = document.createElement("button"); remove.type = "button"; remove.className = "btn small secondary"; remove.textContent = "Delete"; remove.setAttribute("aria-label", "Delete " + item.title);
+        remove.addEventListener("click", async () => {
+          if (!confirm('Permanently delete "' + item.title + '"? This cannot be undone.')) return;
+          remove.disabled = true; remove.textContent = "Deleting…";
+          try {
+            const result = await request("/api/admin/content/" + encodeURIComponent(item.id), { method:"DELETE", headers:headers() });
+            if ($("content-id").value === item.id) resetForm();
+            message("editor-message", result.storageCleanupPending ? "Content deleted; private file cleanup is pending." : "Content deleted.");
+            await loadItems();
+          } catch (error) {
+            remove.disabled = false; remove.textContent = "Delete";
+            message("editor-message", error.message, true);
+          }
+        });
+        actions.append(edit, change, remove); card.append(details, actions); list.append(card);
       }
     } catch (error) { $("content-list").textContent = error.message; }
   }

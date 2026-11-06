@@ -137,3 +137,59 @@ test("CMS CORS does not authorize unknown browser origins", async () => {
   });
   assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
+
+
+test("CMS content deletion requires admin authentication", async () => {
+  const db = fakeDb();
+  const app = appFor(db);
+  const response = await req(app, "/api/admin/content/123e4567-e89b-12d3-a456-426614174000", { method: "DELETE" });
+  assert.equal(response.status, 401);
+  assert.equal(db.calls.length, 0);
+});
+
+test("CMS deletion removes an article and retains an audit snapshot", async () => {
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("WITH target AS MATERIALIZED")) {
+      assert.match(sql, /INSERT INTO cms\.cms_audit_log/);
+      assert.match(sql, /DELETE FROM cms\.content_items/);
+      return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", title: "Test article", slug: "test-article", content_type: "article", file_key: null }], rowCount: 1 };
+    }
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/123e4567-e89b-12d3-a456-426614174000", { method: "DELETE", token });
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.deleted, true);
+  assert.equal(data.storageCleanupPending, false);
+});
+
+test("CMS resource deletion removes its private object from storage", async () => {
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [{ id: "123e4567-e89b-12d3-a456-426614174000", title: "PDF", slug: "pdf", content_type: "resource", file_key: "resources/2026/abc.pdf" }], rowCount: 1 };
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const deleted = [];
+  const storage = { send: async (command) => { deleted.push(command.input); return {}; } };
+  const app = appFor(db, { hash: await passwordHash(), storage });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/123e4567-e89b-12d3-a456-426614174000", { method: "DELETE", token });
+  assert.equal(response.status, 200);
+  assert.deepEqual(deleted, [{ Bucket: "engiadda-content", Key: "resources/2026/abc.pdf" }]);
+});
+
+test("CMS deletion reports missing content without deleting storage", async () => {
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("WITH target AS MATERIALIZED")) return { rows: [], rowCount: 0 };
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const storage = { send: async () => { throw new Error("must not run"); } };
+  const app = appFor(db, { hash: await passwordHash(), storage });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/123e4567-e89b-12d3-a456-426614174000", { method: "DELETE", token });
+  assert.equal(response.status, 404);
+});
