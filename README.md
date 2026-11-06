@@ -34,6 +34,6 @@ npm test
 ## Security
 
 - The public API only reads verified, unexpired jobs.
-- Job ingestion requires a Bearer token and HTTPS URLs.
+- Job ingestion requires a GitHub OIDC token restricted to the production job-alert workflow and HTTPS URLs.
 - Browser CORS is restricted to the EngiAdda GitHub Pages origin and local development.
 - Never commit `.env.local`, Neon credentials, webhook tokens or Telegram credentials.
