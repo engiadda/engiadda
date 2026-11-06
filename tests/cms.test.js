@@ -234,3 +234,55 @@ test("CMS recruitment update validates and stores official links", async () => {
   const valid = await req(app, "/api/admin/content", { method: "POST", token, body: { contentType: "recruitment", title: "Recruitment", category: "Career Guidance", bodyMarkdown: "# Details", recruitmentLinks: { notification: "https://example.gov.in/notice.pdf", apply: "https://example.gov.in/apply" } } });
   assert.equal(valid.status, 201);
 });
+
+
+test("CMS redesigned publishing stores disciplines, structured recruitment metadata and attachments", async () => {
+  const db = fakeDb(async (sql, params) => {
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    if (sql.includes("INSERT INTO cms.content_items")) {
+      assert.match(sql, /disciplines/);
+      assert.match(sql, /metadata/);
+      assert.match(sql, /attachments/);
+      assert.deepEqual(params[17], ["Electrical Engineering", "Civil Engineering"]);
+      const metadata = JSON.parse(params[21]);
+      assert.equal(metadata.organization, "POWERGRID");
+      assert.equal(metadata.vacancies, 319);
+      assert.equal(metadata.applicationEnd, "2026-11-18T18:29:00.000Z");
+      const attachments = JSON.parse(params[22]);
+      assert.equal(attachments.length, 1);
+      assert.equal(attachments[0].fileKey, "resources/2026/notice.pdf");
+      return { rows: [{ id: "new-recruitment", title: "POWERGRID Engineer Trainee", content_type: "recruitment", attachments: [] }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content", {
+    method: "POST", token,
+    body: {
+      contentType: "recruitment", title: "POWERGRID Engineer Trainee", category: "Government / PSU Jobs",
+      bodyMarkdown: "# Recruitment details", status: "draft",
+      disciplines: ["Electrical Engineering", "Civil Engineering"],
+      metadata: { organization: "POWERGRID", vacancies: 319, applicationEnd: "2026-11-18T18:29:00.000Z" },
+      attachments: [{ fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 1024 }]
+    }
+  });
+  assert.equal(response.status, 201);
+});
+
+test("CMS rejects attachments with invalid storage keys or unsupported MIME types", async () => {
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const app = appFor(db, { hash: await passwordHash() });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content", {
+    method: "POST", token,
+    body: {
+      contentType: "article", title: "Invalid attachment test", category: "Technology", bodyMarkdown: "Body",
+      attachments: [{ fileKey: "../private.pdf", fileName: "private.pdf", fileMime: "application/pdf", fileSizeBytes: 100 }]
+    }
+  });
+  assert.equal(response.status, 400);
+});
