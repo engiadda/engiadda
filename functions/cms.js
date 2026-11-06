@@ -118,7 +118,7 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
       const result = await db.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
-      const items = await Promise.all(result.rows.map(row => withFileUrls(row, storage)));
+      const items = await Promise.all(result.rows.map(async row => ({ ...(await withFileUrls(row, storage)), file_key: row.file_key })));
       return c.json({ items });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
