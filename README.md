@@ -35,6 +35,6 @@ npm test
 
 - The public API only reads verified, unexpired jobs.
 - Job ingestion requires a GitHub OIDC token restricted to the production job-alert workflow and HTTPS URLs.
-- The API uses a dedicated database role scoped to the jobs schema, not the database owner role.
+- The API uses a dedicated database role scoped to the `neondb.public` schema, not the database owner role.
 - Browser CORS is restricted to the EngiAdda GitHub Pages origin and local development.
 - Never commit `.env.local`, Neon credentials, webhook tokens or Telegram credentials.
