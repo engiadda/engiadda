@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
+import { S3Client } from "@aws-sdk/client-s3";
 import { createCmsApp } from "../functions/cms.js";
 
 const scrypt = promisify(scryptCallback);
@@ -109,6 +110,31 @@ test("CMS public detail endpoint excludes scheduled content and hides object key
   assert.match(db.calls[0].sql, /published_at IS NOT NULL AND published_at <= NOW\(\)/);
   const data = await response.json();
   assert.equal(data.item.file_key, undefined);
+});
+
+test("CMS admin content detail returns fresh signed attachment download links", async () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const attachments = [{ fileKey: "resources/2026/notice.pdf", fileName: "notice.pdf", fileMime: "application/pdf", fileSizeBytes: 1024, label: "Official notice" }];
+  const db = fakeDb(async (sql) => {
+    if (sql.includes("SELECT * FROM cms.content_items WHERE id=$1")) return { rows: [{ id, title: "Recruitment draft", attachments, file_key: null }], rowCount: 1 };
+    if (sql.includes("SELECT attempts")) return { rows: [], rowCount: 0 };
+    return { rows: [], rowCount: 1 };
+  });
+  const storage = new S3Client({
+    region: "ap-southeast-1",
+    endpoint: "https://storage.example.test",
+    forcePathStyle: true,
+    credentials: { accessKeyId: "test-access-key", secretAccessKey: "test-secret-key" }
+  });
+  const app = appFor(db, { hash: await passwordHash(), storage });
+  const token = await login(app);
+  const response = await req(app, "/api/admin/content/" + id, { token });
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.item.attachments[0].fileKey, attachments[0].fileKey);
+  assert.equal(data.item.attachments[0].fileName, "notice.pdf");
+  assert.match(data.item.attachments[0].url, /^https:\/\//);
+  assert.match(data.item.attachments[0].url, /X-Amz-Signature=/);
 });
 
 test("CMS content creation requires authentication and validates payload", async () => {
