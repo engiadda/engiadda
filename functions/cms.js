@@ -58,7 +58,7 @@ function requireAdmin(c, next, env, clock) {
   return next();
 }
 async function fileUrl(key, storage) { if (!storage || !key) return null; return getSignedUrl(storage, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 }); }
-async function withFileUrls(row, storage, includeKeys = false) { const { file_key, ...item } = row; return { ...item, file_url: file_key ? await fileUrl(file_key, storage) : null, attachments: await Promise.all((Array.isArray(row.attachments) ? row.attachments : []).map(async file => ({ ...(includeKeys ? { fileKey: file.fileKey } : {}), fileName: file.fileName, fileMime: file.fileMime, fileSizeBytes: file.fileSizeBytes, label: file.label, url: file?.fileKey ? await fileUrl(file.fileKey, storage) : null }))) }; }
+async function withFileUrls(row, storage, includeKeys = false, includeUrls = true) { const { file_key, ...item } = row; return { ...item, file_url: includeUrls && file_key ? await fileUrl(file_key, storage) : null, attachments: await Promise.all((Array.isArray(row.attachments) ? row.attachments : []).map(async file => ({ ...(includeKeys ? { fileKey: file.fileKey } : {}), fileName: file.fileName, fileMime: file.fileMime, fileSizeBytes: file.fileSizeBytes, label: file.label, url: includeUrls && file?.fileKey ? await fileUrl(file.fileKey, storage) : null }))) }; }
 
 export function createCmsApp({ db = pool, env = process.env, storage = s3, clock = () => Date.now() } = {}) {
   if (!db || typeof db.query !== "function") throw new Error("CMS database adapter is required");
@@ -72,7 +72,7 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       let where = "status = 'published'";
       if (category) { params.push(category); where += " AND category = $1"; }
       const result = await db.query(`SELECT id, content_type, title, slug, excerpt, category, subject, exam, tags, disciplines, author, featured_image_url, metadata, attachments, recruitment_links, file_key, file_name, file_mime, published_at, scheduled_at FROM cms.content_items WHERE ${where} AND published_at IS NOT NULL AND published_at <= NOW() AND (scheduled_at IS NULL OR scheduled_at <= NOW()) ORDER BY published_at DESC LIMIT 100`, params);
-      const items = await Promise.all(result.rows.map(row => withFileUrls(row, storage)));
+      const items = await Promise.all(result.rows.map(row => withFileUrls(row, storage, false, false)));
       return c.json({ items }, 200, { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" });
     } catch (error) { console.error("Public CMS list failed:", error.message); return jsonError(c, "Content service temporarily unavailable", 503); }
   });
@@ -118,7 +118,7 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
       let where = "TRUE";
       if (["draft", "published", "archived"].includes(status)) { params.push(status); where = "status=$1"; }
       const result = await db.query(`SELECT * FROM cms.content_items WHERE ${where} ORDER BY updated_at DESC LIMIT 200`, params);
-      const items = await Promise.all(result.rows.map(async row => ({ ...(await withFileUrls(row, storage, true)), file_key: row.file_key })));
+      const items = await Promise.all(result.rows.map(async row => ({ ...(await withFileUrls(row, storage, true, false)), file_key: row.file_key })));
       return c.json({ items });
     } catch (error) { console.error("CMS admin list failed:", error.message); return jsonError(c, "Unable to load content", 503); }
   });
