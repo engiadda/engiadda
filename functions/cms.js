@@ -160,7 +160,7 @@ async function saveContent(c, id) {
   const key = safeText(body.fileKey, 1024) || null;
   if (key && !key.startsWith("resources/")) return jsonError(c, "Invalid file key");
   if (type === "resource" && !key) return jsonError(c, "Upload a resource file before saving");
-  const values = [type,title,slug,safeText(body.excerpt,600),markdown,category,safeText(body.subject,120),safeText(body.exam,120),Array.isArray(body.tags)?body.tags.filter(x=>typeof x==="string").slice(0,20).map(x=>safeText(x,50)):[],status,key,safeText(body.fileName,255)||null,safeText(body.fileMime,120)||null,Number.isSafeInteger(Number(body.fileSizeBytes))?Number(body.fileSizeBytes):null,safeText(body.seoTitle,70)||null,safeText(body.seoDescription,180)||null];
+  const values = [type,title,slug,safeText(body.excerpt,600),markdown,category,safeText(body.subject,120),safeText(body.exam,120),Array.isArray(body.tags)?body.tags.filter(x=>typeof x==="string").slice(0,20).map(x=>safeText(x,50)):[],status,key,safeText(body.fileName,255)||null,safeText(body.fileMime,120)||null,body.fileSizeBytes !== null && body.fileSizeBytes !== undefined && body.fileSizeBytes !== "" && Number.isSafeInteger(Number(body.fileSizeBytes)) ? Number(body.fileSizeBytes) : null,safeText(body.seoTitle,70)||null,safeText(body.seoDescription,180)||null];
   try {
     const result = id
       ? await pool.query(`UPDATE content_items SET content_type=$1,title=$2,slug=$3,excerpt=$4,body_markdown=$5,category=$6,subject=$7,exam=$8,tags=$9,status=$10,file_key=$11,file_name=$12,file_mime=$13,file_size_bytes=$14,seo_title=$15,seo_description=$16,updated_at=now(),published_at=CASE WHEN $10='published' THEN COALESCE(published_at,now()) ELSE published_at END WHERE id=$17 RETURNING *`, [...values, id])
