@@ -89,14 +89,14 @@
   }
   async function editContent(id) {
     try {
-      const data = await api("/api/cms/content?type=article");
-      const item = data.content.find((entry) => entry.id === id);
-      if (!item) { message("editorMessage", "Only published content is currently returned by the public detail feed. Draft editing will be enabled in the next API refinement."); return; }
+      const data = await api(`/api/cms/admin/content/${encodeURIComponent(id)}`);
+      const item = data.content;
+      if (!item) { message("editorMessage", "Content not found."); return; }
       $("contentId").value = item.id; $("title").value = item.title; $("slug").value = item.slug;
       $("summary").value = item.summary || ""; $("body").value = item.body_markdown || "";
-      $("contentType").value = item.content_type; $("status").value = "published";
+      $("contentType").value = item.content_type; $("status").value = item.status;
       $("subject").value = item.subject || ""; $("topic").value = item.topic || "";
-      $("cover").value = item.cover_image_url || ""; $("editorHeading").textContent = "Edit content";
+      $("cover").value = item.cover_image_url || ""; $("seoTitle").value = item.seo_title || ""; $("seoDescription").value = item.seo_description || ""; $("editorHeading").textContent = "Edit content";
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) { message("editorMessage", error.message); }
   }
