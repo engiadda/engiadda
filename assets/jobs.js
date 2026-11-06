@@ -8,7 +8,7 @@
   const loadMore = document.getElementById("jobs-load-more");
   if (!form || !list || !status || !loadMore) return;
 
-  const state = { items: [], visible: 12, loading: false };
+  const state = { items: [], visible: 12, loading: false };\n  const params = new URLSearchParams(window.location.search);
   const typeLabels = {
     job: "JOB OPENING", recruitment: "RECRUITMENT", result: "RESULT",
     admit_card: "ADMIT CARD", interview: "INTERVIEW / SELECTION", career: "CAREER UPDATE"
@@ -163,7 +163,7 @@
     return state.items.filter(item => {
       if (query && !searchableText(item).includes(query)) return false;
       if (type && inferType(item) !== type) return false;
-      if (sector && inferSector(item) !== sector) return false;
+      const itemSector = inferSector(item);\n      if (sector === "government-psu" && !["government", "psu"].includes(itemSector)) return false;\n      if (sector && sector !== "government-psu" && itemSector !== sector) return false;
       if (discipline) {
         const values = [item.engineering_discipline, item.subject, ...(Array.isArray(item.disciplines) ? item.disciplines : [])].filter(Boolean).join(" ").toLowerCase();
         if (!values.includes(discipline)) return false;
@@ -219,7 +219,7 @@
     render(true);
   }
 
-  form.addEventListener("submit", event => { event.preventDefault(); render(true); });
+  const initialSector = params.get("sector") || "";\n  const initialDiscipline = params.get("discipline") || "";\n  if (["government", "psu", "private", "government-psu"].includes(initialSector)) form.elements.category.value = initialSector;\n  if (initialDiscipline === "engineering") form.elements.discipline.value = "";\n  else if (initialDiscipline) form.elements.discipline.value = initialDiscipline;\n  form.addEventListener("submit", event => { event.preventDefault(); render(true); });
   form.addEventListener("input", event => { if (event.target.matches('input[type="search"]')) render(true); });
   loadMore.addEventListener("click", () => { state.visible += 12; render(false); });
   loadFeed();
