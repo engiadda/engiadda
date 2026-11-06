@@ -27,6 +27,7 @@
     const type = String(item.content_type || "").toLowerCase();
     const title = String(item.title || "").toLowerCase();
     if (type === "recruitment") return "RECRUITMENT NOTICE";
+    if (type === "exam_update") return "EXAM UPDATE";
     if (type === "result" || /\b(result|merit list|score card)\b/.test(title)) return "RESULT UPDATE";
     if (/\b(admit card|hall ticket)\b/.test(title)) return "ADMIT CARD";
     if (/\b(interview|shortlist|selection list)\b/.test(title)) return "SELECTION UPDATE";
@@ -79,7 +80,10 @@
       .sort((a, b) => safeDate(b.published_at || b.created_at) - safeDate(a.published_at || a.created_at))
       .slice(0, 6);
     if (!latest.length) {
-      showMessage("No updates have been published yet. New EngiAdda articles, resources and career notices will appear here automatically.");
+      const anyFailure = results.some(result => result.status === "rejected");
+      showMessage(anyFailure
+        ? "The latest updates could not be loaded just now. Please visit Careers or the Knowledge Library."
+        : "No updates have been published yet. New EngiAdda articles, resources and career notices will appear here automatically.");
       return;
     }
     target.replaceChildren(...latest.map(makeCard));
