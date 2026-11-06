@@ -31,7 +31,7 @@
   function renderAttachments(item){
     const container=document.getElementById("content-attachments");if(!container)return;
     const files=Array.isArray(item.attachments)?item.attachments:[];
-    if(item.file_url&&!files.some(x=>x.fileKey===item.file_key))files.unshift({fileName:item.file_name||"Download resource",url:item.file_url});
+    if(item.file_url&&!files.some(x=>x.fileName===item.file_name))files.unshift({fileName:item.file_name||"Download resource",url:item.file_url});
     for(const file of files){if(!file.url)continue;const a=document.createElement("a");a.href=file.url;a.target="_blank";a.rel="noopener noreferrer";a.textContent=(file.label||file.fileName||"Download attachment")+" · Open / download";container.append(a);}
     container.hidden=!container.childElementCount;
   }
