@@ -1,0 +1,14 @@
+/* Technology topic cards — image-led editorial layout */
+#topics .section-head{align-items:end}
+.tech-topic-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.tech-topic-card{min-width:0;overflow:hidden;background:#fff;border:1px solid #e5e1da;border-radius:4px;box-shadow:0 7px 24px rgba(18,20,24,.055);transition:transform .22s,box-shadow .22s,border-color .22s}
+.tech-topic-card:hover{transform:translateY(-4px);border-color:#c9c0b5;box-shadow:0 16px 32px rgba(18,20,24,.11)}
+.tech-topic-image{height:205px;overflow:hidden;background:#20242a}
+.tech-topic-image img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .45s}
+.tech-topic-card:hover .tech-topic-image img{transform:scale(1.045)}
+.tech-topic-copy{padding:23px 24px 26px}
+.tech-topic-copy>span{font-size:12px;letter-spacing:1.5px;color:var(--accent);font-weight:800}
+.tech-topic-copy h2{font-size:25px;line-height:1.16;letter-spacing:-.7px;margin:14px 0 10px}
+.tech-topic-copy p{font-size:16px;line-height:1.68;color:#686d74;margin:0}
+@media(max-width:1000px){.tech-topic-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tech-topic-image{height:190px}}
+@media(max-width:600px){.tech-topic-grid{grid-template-columns:1fr;gap:16px}.tech-topic-image{height:210px}.tech-topic-copy{padding:21px 21px 23px}.tech-topic-copy h2{font-size:24px}.tech-topic-copy p{font-size:16px}}
