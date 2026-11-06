@@ -46,7 +46,7 @@ Do not paste any secret into a chat, issue, pull request, commit, or log.
 
 - `GET /api/live` — liveness, no database query
 - `GET /api/health` — PostgreSQL readiness
-- `GET /api/jobs` — public active verified job feed; supports `limit`, `offset`, `q`, `category`, and `discipline`
+- `GET /api/jobs` — public active verified job feed; supports `limit`, `offset`, `q`, `category`, and `discipline`\n  Private-sector roles without a stated closing date are retained for at most 60 days from their explicit publication date; no artificial application deadline is created.
 - `POST /api/jobs/ingest` — protected publisher endpoint; requires a Bearer token, HTTPS job URL, verified-source flag, and non-expired deadline
 
 The Careers page is intentionally read-only. It does not allow arbitrary users to post jobs. Job submissions are accepted only from the authenticated job-alert publisher.
