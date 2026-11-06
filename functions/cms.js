@@ -4,7 +4,7 @@ import { attachDatabasePool } from "@neon/functions";
 import pg from "pg";
 import { createHmac, randomBytes, timingSafeEqual, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const { Pool } = pg;
@@ -62,7 +62,7 @@ async function fileUrl(key, storage) { if (!storage) return null; return getSign
 export function createCmsApp({ db = pool, env = process.env, storage = s3, clock = () => Date.now() } = {}) {
   if (!db || typeof db.query !== "function") throw new Error("CMS database adapter is required");
   const app = new Hono();
-  app.use("/api/*", cors({ origin: ORIGINS, allowHeaders: ["Content-Type", "Authorization"], allowMethods: ["GET", "POST", "PATCH", "OPTIONS"], maxAge: 86400 }));
+  app.use("/api/*", cors({ origin: ORIGINS, allowHeaders: ["Content-Type", "Authorization"], allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], maxAge: 86400 }));
   app.get("/api/live", (c) => c.json({ status: "ok", service: "engiadda-cms-api" }));
   app.get("/api/content", async (c) => {
     try {
@@ -139,6 +139,55 @@ export function createCmsApp({ db = pool, env = process.env, storage = s3, clock
   });
   app.post("/api/admin/content", async (c) => saveContent(c, null, { db, storage }));
   app.patch("/api/admin/content/:id", async (c) => saveContent(c, c.req.param("id"), { db, storage }));
+  app.delete("/api/admin/content/:id", async (c) => {
+    const id = safeText(c.req.param("id"), 80);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return jsonError(c, "Invalid content ID", 400);
+    try {
+      // Keep a durable audit snapshot, then remove the row in one SQL statement.
+      // The audit table intentionally has no FK to content_items, so history survives deletion.
+      const result = await db.query(`
+        WITH target AS MATERIALIZED (
+          SELECT id, title, slug, content_type, file_key
+          FROM cms.content_items WHERE id=$1 FOR UPDATE
+        ),
+        audit AS (
+          INSERT INTO cms.cms_audit_log(action, content_id, details)
+          SELECT 'deleted', id, jsonb_build_object(
+            'title', title, 'slug', slug, 'content_type', content_type,
+            'file_key', file_key
+          ) FROM target
+          RETURNING id
+        ),
+        deleted AS (
+          DELETE FROM cms.content_items AS item
+          USING target, audit
+          WHERE item.id=target.id
+          RETURNING item.id, item.title, item.slug, item.content_type, item.file_key
+        )
+        SELECT * FROM deleted
+      `, [id]);
+      if (!result.rowCount) return jsonError(c, "Content not found", 404);
+      const item = result.rows[0];
+      if (item.file_key) {
+        if (!storage) {
+          console.error("CMS content deleted but storage cleanup is unavailable:", item.file_key);
+          return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
+        }
+        try {
+          await storage.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: item.file_key }));
+        } catch (storageError) {
+          // The bucket is private and no content row remains to issue a download URL.
+          // Preserve the successful content deletion and report the orphaned object for cleanup.
+          console.error("CMS storage cleanup pending:", storageError.message);
+          return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: true }, 200);
+        }
+      }
+      return c.json({ deleted: true, item: { id: item.id, title: item.title }, storageCleanupPending: false });
+    } catch (error) {
+      console.error("CMS content deletion failed:", error.message);
+      return jsonError(c, "Unable to delete content", 503);
+    }
+  });
   app.patch("/api/admin/content/:id/status", async (c) => {
     let body; try { body = await c.req.json(); } catch { return jsonError(c, "Invalid JSON"); }
     const status = safeText(body.status, 20);
