@@ -18,7 +18,7 @@ This release adds an administrator-only content manager for technical articles a
 ## One-time setup
 
 1. Review and apply `migrations/20261106_cms.sql` to the production Neon branch.
-2. Create a production Neon Object Storage bucket named `engiadda-content` with access level `public_read`.
+2. Create a production Neon Object Storage bucket named `engiadda-content` with access level `private`.
 3. Create a Postgres role named `engiadda_cms_api` with `read_write` access scoped to database `neondb` and schema `cms`. Obtain its pooled connection string and set it as the CMS Function environment variable `CMS_DATABASE_URL`. Do not use the database-owner connection string.\n4. Deploy `functions/cms.js` as Neon Function slug `cms` (Node.js 24). The function also receives the bucket-injected `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, and `AWS_REGION` variables.
 5. Generate admin secrets locally. In Bash:
    ```bash
