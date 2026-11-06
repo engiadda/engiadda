@@ -1,0 +1,32 @@
+name: CMS validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: |
+          node --check functions/cms.js
+          node --check tests/cms.test.js
+          node --check assets/admin.js
+          node --check assets/content.js
+          node --check assets/config.js
+          node --check scripts/hash-cms-password.mjs
+      - name: Run existing test suite
+        run: npm test
