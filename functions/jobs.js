@@ -150,7 +150,8 @@ app.get("/api/jobs", async (c) => {
     const filters = [
       "official = TRUE",
       "(deadline IS NULL OR deadline >= CURRENT_DATE)",
-      "(category IS DISTINCT FROM 'private' OR CASE WHEN published_at ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}
+      "(category IS DISTINCT FROM 'private' OR CASE WHEN published_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN published_at::date >= CURRENT_DATE - INTERVAL '60 days' ELSE FALSE END)",
+    ];
 
     if (search) {
       params.push(`%${search}%`);
