@@ -118,8 +118,9 @@
   $("save-draft").addEventListener("click",()=>save("draft"));
   $("preview-btn").addEventListener("click",()=>{
     $("preview-panel").hidden=false;$("preview-title").textContent=$("content-title").value||"Untitled content";$("preview-excerpt").textContent=$("content-excerpt").value;
-    const selected=Array.from(document.querySelectorAll("#discipline-options input:checked")).map(x=>x.value);
-    $("preview-meta").textContent=[$("content-category").value,...selected].join(" · ");
+    const selected=Array.from(document.querySelectorAll("#discipline-options input:checked")).map(x=>x.value),meta=metadataPayload();
+    const previewDetails=[$("content-category").value,...selected,meta.organization,meta.advertisementNumber,meta.vacancies?meta.vacancies+" vacancies":null,meta.applicationStart?"Starts "+new Date(meta.applicationStart).toLocaleString("en-IN"):null,meta.applicationEnd?"Closes "+new Date(meta.applicationEnd).toLocaleString("en-IN"):null].filter(Boolean);
+    $("preview-meta").textContent=previewDetails.join(" · ");
     if(window.marked&&window.DOMPurify)$("preview-output").innerHTML=DOMPurify.sanitize(marked.parse($("content-body").value||""));else $("preview-output").textContent=$("content-body").value;
     $("preview-panel").scrollIntoView({behavior:"smooth",block:"nearest"});
   });
